@@ -141,6 +141,26 @@ img, video { max-width: 100%; height: auto; }
 .logo a { color: inherit; border: 0; background: none; }
 .logo a:hover { color: #fff; }
 
+.site-brand {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin: .5rem 0 .2rem;
+}
+.site-brand .logo { margin: 0; }
+.site-brand .slogan { margin: .2rem 0 0; }
+.brand-mark { border: 0; flex: 0 0 auto; }
+.brand-mark:hover { background: none; }
+.brand-logo {
+  display: block;
+  width: 64px;
+  height: 64px;
+  object-fit: cover;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  box-shadow: 0 0 12px rgba(255,43,43,.25);
+}
+
 .slogan {
   color: var(--dim);
   letter-spacing: .35em;
