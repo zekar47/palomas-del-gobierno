@@ -171,7 +171,7 @@ func homeHandler(w http.ResponseWriter, r *http.Request) {
 		{Name: "ZEKAR", Role: "bajo y voz", Bio: "Bajo la influencia de alucinógenos piensa que el bajo es un piano.", Photo: "/static/zekar.webp"},
 		{Name: "CALEB", Role: "guitarra rítmica", Bio: "No se aprende las rolas... pero le sale chida la carne asada.", Photo: "/static/caleb.webp"},
 		{Name: "ELI", Role: "guitarra líder", Bio: "Hizo su propia guitarra porque ninguna era suficiente.", Photo: "/static/eli.png"},
-		{Name: "EMMANUEL", Role: "batería", Bio: "No sé quién sea, nunca lo he visto.", Photo: "/static/emmanuel.webp"},
+		{Name: "EMMANUEL", Role: "batería", Bio: "Nunca le preguntes qué pasó con la batería del video de N.O.V.A.", Photo: "/static/emmanuel.webp"},
 	}
 	data := homeData{
 		pageData: loadPage(r, "PALOMAS DEL GOBIERNO"),
