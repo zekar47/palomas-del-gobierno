@@ -364,7 +364,6 @@ main {
 .member { margin: 0; padding: 1rem; border-color: var(--line); }
 .member-name { margin: 0 0 .15rem; }
 .role { color: var(--red-hot); letter-spacing: .15em; font-size: .8rem; }
-.status { color: var(--dim); font-size: .8rem; }
 
 .stats { text-align: center; color: var(--dim); font-size: .85rem; letter-spacing: .1em; }
 

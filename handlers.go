@@ -145,10 +145,9 @@ func uploadsHandler(w http.ResponseWriter, r *http.Request) {
 // ---------------------------------------------------------------------------
 
 type member struct {
-	Name   string
-	Role   string
-	Bio    string
-	Status string
+	Name string
+	Role string
+	Bio  string
 }
 
 type homeData struct {
@@ -167,11 +166,11 @@ func homeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	threads, _ := listThreads(4)
 	members := []member{
-		{Name: "HUGOAT", Role: "guitarra y voz", Bio: "El líder de la banda aunque siempre diga lo contrario.", Status: ""},
-		{Name: "ZEKAR", Role: "bajo y voz", Bio: "Bajo la influencia de alucinógenos piensa que el bajo es un piano.", Status: ""},
-		{Name: "CALEB", Role: "guitarra rítmica", Bio: "No se aprende las rolas... pero le sale chida la carne asada.", Status: ""},
-		{Name: "ELI", Role: "guitarra líder", Bio: "Hizo su propia guitarra porque ninguna era suficiente.", Status: ""},
-		{Name: "EMMANUEL", Role: "batería", Bio: "No sé quién sea, nunca lo he visto.", Status: ""},
+		{Name: "HUGOAT", Role: "guitarra y voz", Bio: "El líder de la banda aunque siempre diga lo contrario."},
+		{Name: "ZEKAR", Role: "bajo y voz", Bio: "Bajo la influencia de alucinógenos piensa que el bajo es un piano."},
+		{Name: "CALEB", Role: "guitarra rítmica", Bio: "No se aprende las rolas... pero le sale chida la carne asada."},
+		{Name: "ELI", Role: "guitarra líder", Bio: "Hizo su propia guitarra porque ninguna era suficiente."},
+		{Name: "EMMANUEL", Role: "batería", Bio: "No sé quién sea, nunca lo he visto."},
 	}
 	data := homeData{
 		pageData: loadPage(r, "PALOMAS DEL GOBIERNO"),
