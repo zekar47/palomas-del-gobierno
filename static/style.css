@@ -362,6 +362,15 @@ main {
   gap: 1rem;
 }
 .member { margin: 0; padding: 1rem; border-color: var(--line); }
+.member-photo {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  border: 1px solid var(--line);
+  margin-bottom: .7rem;
+  background: #000;
+}
 .member-name { margin: 0 0 .15rem; }
 .role { color: var(--red-hot); letter-spacing: .15em; font-size: .8rem; }
 

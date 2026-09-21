@@ -68,6 +68,7 @@
   <ul class="members">
     {{range .Members}}
     <li class="member card">
+      {{if .Photo}}<img class="member-photo" src="{{.Photo}}" alt="foto de {{.Name}}" loading="lazy">{{end}}
       <h3 class="member-name">{{.Name}}</h3>
       <p class="role">&gt;&gt; {{.Role}}</p>
       <p class="bio">{{.Bio}}</p>
