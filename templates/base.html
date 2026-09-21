@@ -1,0 +1,88 @@
+{{define "base"}}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Palomas del Gobierno — ruido subversivo, distopía municipal, resistencia palomil.">
+<title>{{.Title}} :: PALOMAS DEL GOBIERNO</title>
+<link rel="stylesheet" href="/static/style.css">
+<link rel="alternate" type="application/atom+xml" title="Palomas del Gobierno — noticias" href="/news/feed.xml">
+<link rel="alternate" type="application/atom+xml" title="Palomas del Gobierno — foro" href="/forum/feed.xml">
+<link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+</head>
+<body>
+<div class="scanlines" aria-hidden="true"></div>
+<a class="skip" href="#contenido">saltar al contenido</a>
+
+<header class="site-header">
+  <p class="statusbar">
+    <span>SISTEMA: <strong>EN LINEA</strong></span>
+    <span>·</span>
+    <span>ESTADO: <strong>SUBLEVADO</strong></span>
+    <span>·</span>
+    <span>ANCHO DE BANDA: <strong>INCAUTADO</strong></span>
+  </p>
+
+  <h1 class="glitch logo" data-text="PALOMAS DEL GOBIERNO">
+    <a href="/">PALOMAS DEL GOBIERNO</a>
+  </h1>
+  <p class="slogan">ruido subversivo · frecuencia municipal · 9.000 MHz</p>
+
+  <nav class="mainnav" aria-label="navegación principal">
+    <a href="/">INICIO</a>
+    <a href="/news">NOTICIAS</a>
+    <a href="/forum">FORO</a>
+    <a href="/news/feed.xml" type="application/atom+xml">FEED</a>
+    {{if .User}}
+    {{if eqstr .User.Role "admin"}}<a href="/admin/new">+ NOTICIA</a>{{end}}
+    {{end}}
+  </nav>
+
+  <p class="sessionbar">
+    {{if .User}}
+    <span class="whoami">@{{.User.Username}}{{if eqstr .User.Role "admin"}} · ADMIN{{end}}</span>
+    <form class="inline" method="post" action="/logout">
+      <input type="hidden" name="csrf" value="{{.CSRF}}">
+      <button type="submit">SALIR</button>
+    </form>
+    {{else}}
+    <a href="/login">INGRESAR</a>
+    <span>·</span>
+    <a href="/register">ALISTARSE</a>
+    {{end}}
+  </p>
+</header>
+
+<main id="contenido">
+{{if .Flash}}<div class="flash">{{.Flash}}</div>{{end}}
+{{template "content" .}}
+</main>
+
+<footer class="site-footer">
+  <nav class="footnav" aria-label="enlaces del pie">
+    <a href="/">INICIO</a> ·
+    <a href="/news">NOTICIAS</a> ·
+    <a href="/forum">FORO</a> ·
+    <a href="/register">ALISTARSE</a>
+    {{if .User}}{{if eqstr .User.Role "admin"}} · <a href="/admin/new">REDACTAR</a>{{end}}{{end}}
+  </nav>
+  <p class="feeds">
+    CANALES DE DIFUSIÓN:
+    <a href="/news/feed.xml" type="application/atom+xml">noticias (atom)</a> ·
+    <a href="/forum/feed.xml" type="application/atom+xml">foro (atom)</a>
+  </p>
+  <pre class="footer-art" aria-hidden="true">
+       \\       PALOMAS DEL GOBIERNO
+       (o>
+    \\_//)      ninguna paloma fue herida al grabar esto
+     \_/_)
+      _|_
+  </pre>
+  <p class="dim">sitio servido con Go + SQLite · sin cookies de rastreo · con las de las palomas</p>
+</footer>
+
+<script src="/static/app.js" defer></script>
+</body>
+</html>
+{{end}}

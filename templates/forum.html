@@ -1,0 +1,28 @@
+{{define "content"}}
+<header class="pagehead">
+  <h2>// FORO</h2>
+  <p class="dim">discusión libre entre palomos. <a href="/forum/feed.xml" type="application/atom+xml">suscripción atom</a></p>
+</header>
+
+{{if .User}}
+<p class="toolbar"><a class="btn" href="/forum/new">+ NUEVO HILO</a></p>
+{{else}}
+<p class="dim"><a href="/login">ingresa</a> (o <a href="/register">alistate</a>) para abrir hilos y responder.</p>
+{{end}}
+
+{{if .Threads}}
+<ul class="thread-list">
+  {{range .Threads}}
+  <li class="card">
+    <h3><a href="/forum/{{.ID}}">{{.Title}}</a></h3>
+    <p class="meta">
+      por @{{.Username}} · [{{.CreatedAt | timeFmt}}] ·
+      {{.Replies}} respuestas · última actividad [{{.UpdatedAt | timeFmt}}]
+    </p>
+  </li>
+  {{end}}
+</ul>
+{{else}}
+<p>el foro está vacío. alguien tiene que romper el hielo (o el vidrio).</p>
+{{end}}
+{{end}}

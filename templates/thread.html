@@ -1,0 +1,37 @@
+{{define "content"}}
+<article class="post">
+  <h2>{{.Thread.Title}}</h2>
+  <p class="meta">por @{{.Thread.Username}} · [{{.Thread.CreatedAt | timeFmt}}]</p>
+  <div class="post-body">{{.Thread.Body | markdown}}</div>
+
+  <section class="comments">
+    <h3>// RESPUESTAS ({{.Thread.Replies}})</h3>
+
+    {{if .Replies}}
+    <ul class="comment-list">
+      {{range .Replies}}
+      <li class="comment">
+        <p class="meta">@{{.Username}} · [{{.CreatedAt | timeFmt}}]</p>
+        <div class="comment-body">{{.Body | markdown}}</div>
+      </li>
+      {{end}}
+    </ul>
+    {{else}}
+    <p class="dim">sin respuestas todavía. tu hilo es un eco.</p>
+    {{end}}
+
+    {{if .User}}
+    <form class="comment-form" method="post" action="/forum/{{.Thread.ID}}/reply">
+      <input type="hidden" name="csrf" value="{{.CSRF}}">
+      <p><label for="reply-body">responder (markdown):</label></p>
+      <textarea id="reply-body" name="body" rows="5" required></textarea>
+      <p><button type="submit">RESPONDER</button></p>
+    </form>
+    {{else}}
+    <p class="dim"><a href="/login">ingresa</a> para responder.</p>
+    {{end}}
+  </section>
+</article>
+
+<p class="dim"><a href="/forum">← volver al foro</a></p>
+{{end}}

@@ -1,0 +1,26 @@
+{{define "content"}}
+<header class="pagehead">
+  <h2>// NOTICIAS</h2>
+  <p class="dim">el boletín oficial (no oficial). <a href="/news/feed.xml" type="application/atom+xml">suscripción atom</a></p>
+</header>
+
+{{if .User}}{{if eqstr .User.Role "admin"}}
+<p class="toolbar"><a class="btn" href="/admin/new">+ NUEVA NOTICIA</a></p>
+{{end}}{{end}}
+
+{{if .Posts}}
+{{range .Posts}}
+<article class="card">
+  <h3><a href="/news/{{.ID}}">{{.Title}}</a></h3>
+  <p class="meta">
+    [{{.CreatedAt | timeFmt}}] · por {{.Author}} ·
+    ▲ {{.Likes}} · ▼ {{.Dislikes}} · {{.Comments}} comentarios
+  </p>
+  <p class="excerpt">{{.Body | markdown | excerpt 280}}</p>
+  <p><a class="btn small" href="/news/{{.ID}}">LEER TRANSMISIÓN →</a></p>
+</article>
+{{end}}
+{{else}}
+<p>no hay noticias todavía. el canal está en modo silencio, y eso también es una noticia.</p>
+{{end}}
+{{end}}

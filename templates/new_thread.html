@@ -1,0 +1,30 @@
+{{define "content"}}
+<header class="pagehead">
+  <h2>// NUEVO HILO</h2>
+  <p class="dim">abre una discusión en el foro. markdown habilitado.</p>
+</header>
+
+{{if .Flash}}<div class="flash error">{{.Flash}}</div>{{end}}
+
+<form class="card form" method="post" action="/forum/new">
+  <input type="hidden" name="csrf" value="{{.CSRF}}">
+  <p>
+    <label for="title">título:</label>
+    <input type="text" id="title" name="title" required>
+  </p>
+  <p>
+    <label for="body">contenido (markdown):</label>
+    <textarea id="body" name="body" rows="10" required></textarea>
+  </p>
+  <p class="toolbar">
+    <button type="button" id="preview-btn" data-csrf="{{.CSRF}}">VISTA PREVIA</button>
+    <button type="submit">PUBLICAR</button>
+  </p>
+</form>
+
+<div class="card" id="preview-wrap" hidden>
+  <h3>// VISTA PREVIA</h3>
+  <div id="preview" class="preview-box"></div>
+</div>
+<noscript><p class="dim">la vista previa en vivo necesita javascript.</p></noscript>
+{{end}}

@@ -1,0 +1,15 @@
+{{define "content"}}
+<section class="card form narrow">
+  <h2>// ACCESO</h2>
+  {{if .Error}}<div class="flash error">{{.Error}}</div>{{end}}
+  <form method="post" action="/login">
+    <input type="hidden" name="next" value="{{.Next}}">
+    <p><label for="username">usuario:</label>
+    <input type="text" id="username" name="username" required></p>
+    <p><label for="password">contraseña:</label>
+    <input type="password" id="password" name="password" required></p>
+    <p><button type="submit">ENTRAR</button></p>
+  </form>
+  <p class="dim">¿sin credenciales? <a href="/register">alistate aquí</a>.</p>
+</section>
+{{end}}

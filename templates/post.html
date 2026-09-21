@@ -1,0 +1,66 @@
+{{define "content"}}
+<article class="post">
+  <h2>{{.Post.Title}}</h2>
+  <p class="meta">
+    [{{.Post.CreatedAt | timeFmt}}] · por {{.Post.Author}}
+    {{if ne .Post.CreatedAt .Post.UpdatedAt}} · editada [{{.Post.UpdatedAt | timeFmt}}]{{end}}
+  </p>
+
+  <div class="post-body">{{.PostHTML}}</div>
+
+  <div class="reactions">
+    <form method="post" action="/news/{{.Post.ID}}/reaction">
+      <input type="hidden" name="csrf" value="{{.CSRF}}">
+      <input type="hidden" name="reaction" value="like">
+      <button class="react{{if eqstr .MyReaction "like"}} on{{end}}" type="submit" title="me gusta">▲ LIKE ({{.Post.Likes}})</button>
+    </form>
+    <form method="post" action="/news/{{.Post.ID}}/reaction">
+      <input type="hidden" name="csrf" value="{{.CSRF}}">
+      <input type="hidden" name="reaction" value="dislike">
+      <button class="react{{if eqstr .MyReaction "dislike"}} on{{end}}" type="submit" title="no me gusta">▼ DISLIKE ({{.Post.Dislikes}})</button>
+    </form>
+  </div>
+  {{if not .User}}<p class="dim"><a href="/login">ingresa</a> para votar y comentar.</p>{{end}}
+
+  {{if .User}}{{if eqstr .User.Role "admin"}}
+  <p class="toolbar">
+    <a class="btn small" href="/admin/edit/{{.Post.ID}}">EDITAR</a>
+    <form class="inline" method="post" action="/admin/delete/{{.Post.ID}}"
+          onsubmit="return confirm('¿borrar esta noticia?');">
+      <input type="hidden" name="csrf" value="{{.CSRF}}">
+      <button class="btn small danger" type="submit">BORRAR</button>
+    </form>
+  </p>
+  {{end}}{{end}}
+
+  <section class="comments">
+    <h3>// COMENTARIOS ({{.Post.Comments}})</h3>
+
+    {{if .Comments}}
+    <ul class="comment-list">
+      {{range .Comments}}
+      <li class="comment">
+        <p class="meta">@{{.Username}} · [{{.CreatedAt | timeFmt}}]</p>
+        <div class="comment-body">{{.Body | markdown}}</div>
+      </li>
+      {{end}}
+    </ul>
+    {{else}}
+    <p class="dim">sin comentarios. el silencio también opina.</p>
+    {{end}}
+
+    {{if .User}}
+    <form class="comment-form" method="post" action="/news/{{.Post.ID}}/comment">
+      <input type="hidden" name="csrf" value="{{.CSRF}}">
+      <p><label for="comment-body">tu comentario (markdown):</label></p>
+      <textarea id="comment-body" name="body" rows="4" required></textarea>
+      <p><button type="submit">PUBLICAR</button></p>
+    </form>
+    {{else}}
+    <p class="dim"><a href="/login">ingresa</a> para comentar.</p>
+    {{end}}
+  </section>
+</article>
+
+<p class="dim"><a href="/news">← volver a noticias</a></p>
+{{end}}

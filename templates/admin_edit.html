@@ -1,0 +1,64 @@
+{{define "content"}}
+<header class="pagehead">
+  <h2>{{if .IsEdit}}// EDITAR NOTICIA{{else}}// NUEVA NOTICIA{{end}}</h2>
+  <p class="dim">redacción en markdown. puedes adjuntar una imagen y un video.</p>
+</header>
+
+{{if .Error}}<div class="flash error">{{.Error}}</div>{{end}}
+
+<form class="card form" method="post" enctype="multipart/form-data"
+      action="{{if .IsEdit}}/admin/edit/{{.Post.ID}}{{else}}/admin/new{{end}}">
+  <input type="hidden" name="csrf" value="{{.CSRF}}">
+
+  <p>
+    <label for="title">título:</label>
+    <input type="text" id="title" name="title" value="{{if .Post}}{{.Post.Title}}{{end}}" required>
+  </p>
+
+  <p>
+    <label for="body">cuerpo (markdown):</label>
+    <textarea id="body" name="body" rows="16" required>{{if .Post}}{{.Post.Body}}{{end}}</textarea>
+  </p>
+
+  <details class="md-help">
+    <summary>ayuda rápida de markdown</summary>
+    <ul class="dim">
+      <li><code># Título</code> · <code>## Sección</code> · <code>### Sub</code></li>
+      <li><code>**negrita**</code> · <code>*cursiva*</code> · <code>~~tachado~~</code> · <code>`código`</code></li>
+      <li><code>![\texto](/uploads/tu-imagen.png)</code> para una imagen</li>
+      <li><code>[texto](https://ejemplo.com)</code> enlace</li>
+      <li><code>&gt; cita</code> · listas con <code>-</code> · tablas con <code>|</code></li>
+    </ul>
+  </details>
+
+  <div class="grid2">
+    <p>
+      <label for="image">imagen (png/jpg/gif/webp, máx 10 MB):</label>
+      <input type="file" id="image" name="image" accept="image/*">
+      {{if .Post}}{{if .Post.ImagePath}}
+      <span class="dim">actual: <a href="/uploads/{{.Post.ImagePath}}">{{.Post.ImagePath}}</a></span>
+      <label class="inline"><input type="checkbox" name="remove_image" value="1"> quitar imagen</label>
+      {{end}}{{end}}
+    </p>
+    <p>
+      <label for="video">video (mp4/webm, máx 25 MB):</label>
+      <input type="file" id="video" name="video" accept="video/*">
+      {{if .Post}}{{if .Post.VideoPath}}
+      <span class="dim">actual: <a href="/uploads/{{.Post.VideoPath}}">{{.Post.VideoPath}}</a></span>
+      <label class="inline"><input type="checkbox" name="remove_video" value="1"> quitar video</label>
+      {{end}}{{end}}
+    </p>
+  </div>
+
+  <p class="toolbar">
+    <button type="button" id="preview-btn" data-csrf="{{.CSRF}}">VISTA PREVIA</button>
+    <button type="submit">{{if .IsEdit}}GUARDAR CAMBIOS{{else}}PUBLICAR{{end}}</button>
+  </p>
+</form>
+
+<div class="card" id="preview-wrap" hidden>
+  <h3>// VISTA PREVIA</h3>
+  <div id="preview" class="preview-box"></div>
+</div>
+<noscript><p class="dim">la vista previa en vivo necesita javascript; puedes publicar directamente igual.</p></noscript>
+{{end}}

@@ -1,0 +1,98 @@
+{{define "content"}}
+<section class="hero">
+  <pre class="hero-art" aria-hidden="true">
+         ______
+        /______\
+       /  __  __\
+      |  /  \/  \ |
+      | | (o)  (o) |      ──────────────────────────
+      |  \  ___  / |      PALOMAS DEL GOBIERNO
+      |   \_____/  |      "ruido subversivo desde el
+      |   ______   |       palomar municipal"
+      |  / __  __\ |
+       \/_/    \_\/
+        |        |
+        (--------)
+  </pre>
+  <p class="kicker">distopía municipal · ciberpunk criollo · metal de patio trasero</p>
+  <p class="kicker2">banda sonora para la próxima apagón · resistencia palomil desde 2019</p>
+</section>
+
+<div class="ticker" aria-label="últimas noticias en la frecuencia">
+  <span class="ticker-label">FRECUENCIA&gt;</span>
+  <div class="ticker-track">
+    {{range .Latest}}<a href="/news/{{.ID}}">{{.Title}}</a><span class="ticker-sep"> ✕ </span>{{end}}
+    <span>se escucha fuerte, se escucha claro, no se puede apagar</span><span class="ticker-sep"> ✕ </span>
+    <span>la paloma conoce tus horarios</span><span class="ticker-sep"> ✕ </span>
+  </div>
+</div>
+
+<section class="panel">
+  <h2>// MANIFIESTO</h2>
+  <p>
+    Las palomas del gobierno fuimos un chiste burocrático y nos volvimos un problema de estado.
+    Hacemos ruido con guitarras prestadas, un bajo decomisado y un ritmo que no sale en el
+    reglamento. Esta página es nuestra torre de control: aquí se publica el boletín, se denuncia
+    el silencio y se discute cualquier cosa mientras no suene el timbre del toque de queda.
+  </p>
+  <p>
+    Somos cinco (o cuatro, la quinta nunca aparece en las fotos), tocamos donde nos dejan y
+    grabamos donde no nos ven. Si lees esto desde un navegador de texto: bienvenido a la sala de
+    máquinas. Si lo lees con luces de neón: disfruta el espectáculo.
+  </p>
+</section>
+
+<section class="panel">
+  <h2>// INTEGRANTES</h2>
+  <ul class="members">
+    {{range .Members}}
+    <li class="member card">
+      <h3 class="member-name">{{.Name}}</h3>
+      <p class="role">&gt;&gt; {{.Role}}</p>
+      <p class="bio">{{.Bio}}</p>
+      <p class="status">estado: {{.Status}}</p>
+    </li>
+    {{end}}
+  </ul>
+</section>
+
+<section class="grid2">
+  <section class="panel">
+    <h2>// BITÁCORA DE VUELO</h2>
+    {{if .Latest}}
+    <ul class="plain-list">
+    {{range .Latest}}
+      <li><a href="/news/{{.ID}}">{{.Title}}</a> <span class="dim">[{{.CreatedAt | timeFmt}}]</span></li>
+    {{end}}
+    </ul>
+    {{else}}
+    <p class="dim">sin transmisiones todavía. el silencio también es propaganda.</p>
+    {{end}}
+    <p><a class="btn small" href="/news">TODAS LAS NOTICIAS →</a></p>
+  </section>
+
+  <section class="panel">
+    <h2>// RUIDO RECIENTE</h2>
+    {{if .Threads}}
+    <ul class="plain-list">
+    {{range .Threads}}
+      <li><a href="/forum/{{.ID}}">{{.Title}}</a> <span class="dim">por @{{.Username}} · {{.Replies}} respuestas</span></li>
+    {{end}}
+    </ul>
+    {{else}}
+    <p class="dim">el foro aún no ruge.</p>
+    {{end}}
+    <p><a class="btn small" href="/forum">ENTRAR AL FORO →</a></p>
+  </section>
+</section>
+
+<section class="panel stats">
+  <p>{{.Posts}} transmisiones en el archivo · {{.Users}} palomos registrados</p>
+</section>
+
+<p class="cta">
+  <a class="btn" href="/news">LEER NOTICIAS</a>
+  <a class="btn" href="/forum">PASARSE AL FORO</a>
+  {{if not .User}}<a class="btn" href="/register">ALISTARSE</a>{{end}}
+</p>
+{{end}}
