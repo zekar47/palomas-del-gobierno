@@ -1,0 +1,6 @@
+palomas
+*.db
+*.db-wal
+*.db-shm
+uploads/
+result
