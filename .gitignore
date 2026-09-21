@@ -1,4 +1,5 @@
 palomas
+.dev.pid
 *.db
 *.db-wal
 *.db-shm
