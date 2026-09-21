@@ -275,6 +275,32 @@ main {
    PORTADA
    ===================================================================== */
 .hero { text-align: center; padding: 1rem 0 .5rem; }
+.hero-split {
+  display: flex;
+  gap: 2rem;
+  align-items: center;
+  justify-content: center;
+  text-align: left;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+.hero-split .hero-art {
+  flex: 0 1 auto;
+  max-width: 100%;
+  overflow-x: auto;
+  font-size: .7rem;
+}
+.hero-manifiesto {
+  flex: 1 1 320px;
+  max-width: 34rem;
+  margin: 0;
+  text-align: left;
+}
+.hero-manifiesto h2 { margin-top: 0; }
+@media (max-width: 860px) {
+  .hero-split { flex-direction: column; }
+  .hero-manifiesto { max-width: 100%; }
+}
 .hero-art {
   display: inline-block;
   text-align: left;
