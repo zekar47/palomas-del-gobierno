@@ -53,9 +53,7 @@ jobs:
           $(go env GOPATH)/bin/govulncheck ./...
 
       - name: Cobertura para SonarCloud
-        run: |
-          go install github.com/t-yuki/gocover2sonar@latest
-          $(go env GOPATH)/bin/gocover2sonar -infile coverage.out -outfile coverage-sonar.xml
+        run: python3 scripts/gocover2sonar.py coverage.out coverage-sonar.xml
 
       - name: Subir coverage-sonar.xml
         uses: actions/upload-artifact@v4
