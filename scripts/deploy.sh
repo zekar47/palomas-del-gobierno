@@ -41,7 +41,9 @@ for i in $(seq 1 36); do
 		--instance-id "$INSTANCE_ID" --query Status --output text 2>/dev/null || echo "InProgress")
 	echo "intento $i: $STATUS"
 	[ "$STATUS" = "Success" ] && break
-	case "$STATUS" in InProgress\|Pending\|Delayed) ;; *)
+	case "$STATUS" in
+	InProgress|Pending|Delayed) ;;
+	*)
 		aws ssm get-command-invocation --region "$REGION" --command-id "$CMD_ID" --instance-id "$INSTANCE_ID"
 		exit 1
 		;;

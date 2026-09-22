@@ -1,6 +1,6 @@
 module palomas
 
-go 1.26.5
+go 1.26.6
 
 require (
 	github.com/yuin/goldmark v1.8.5
