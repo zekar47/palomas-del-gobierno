@@ -65,24 +65,31 @@ jobs:
 
   sonar:
     needs: test
-    if: ${{ secrets.SONAR_TOKEN != '' }}
     runs-on: ubuntu-latest
     steps:
+      - name: Aviso si no hay SONAR_TOKEN
+        if: ${{ secrets.SONAR_TOKEN == '' }}
+        run: echo "Sin SONAR_TOKEN: se omite el análisis SonarCloud (ver docs, paso manual pendiente)."
+
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+        if: ${{ secrets.SONAR_TOKEN != '' }}
 
       - name: Descargar coverage-sonar.xml
+        if: ${{ secrets.SONAR_TOKEN != '' }}
         uses: actions/download-artifact@v4
         with:
           name: coverage-sonar
 
       - name: Análisis SonarCloud
+        if: ${{ secrets.SONAR_TOKEN != '' }}
         uses: SonarSource/sonarcloud-github-action@v3
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
       - name: Reporte de métricas
+        if: ${{ secrets.SONAR_TOKEN != '' }}
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_PROJECT_KEY: zekar47_palomas-del-gobierno
@@ -91,6 +98,7 @@ jobs:
           cat docs/metrics/calidad.md >> "$GITHUB_STEP_SUMMARY"
 
       - name: Subir reporte de métricas
+        if: ${{ secrets.SONAR_TOKEN != '' }}
         uses: actions/upload-artifact@v4
         with:
           name: metricas-calidad
