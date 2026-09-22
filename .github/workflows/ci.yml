@@ -69,7 +69,7 @@ jobs:
     steps:
       - name: Aviso si no hay SONAR_TOKEN
         if: ${{ secrets.SONAR_TOKEN == '' }}
-        run: echo 'Sin SONAR_TOKEN: se omite el analisis SonarCloud (paso manual pendiente).'
+        run: "echo 'Sin SONAR_TOKEN: se omite el analisis SonarCloud (paso manual pendiente).'"
 
       - uses: actions/checkout@v4
         with:
