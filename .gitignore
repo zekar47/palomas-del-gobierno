@@ -1,7 +1,12 @@
 palomas
+palomas-linux-amd64
 .dev.pid
 *.db
 *.db-wal
 *.db-shm
 uploads/
 result
+coverage.out
+coverage.html
+coverage-sonar.xml
+gosec.sarif

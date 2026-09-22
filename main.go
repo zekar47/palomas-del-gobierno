@@ -19,7 +19,7 @@ func main() {
 	adminPass := flag.String("admin-pass", os.Getenv("PALOMAS_ADMIN_PASSWORD"), "contraseña del admin inicial (o env PALOMAS_ADMIN_PASSWORD)")
 	flag.Parse()
 
-	if err := os.MkdirAll(*uploadDir, 0o755); err != nil {
+	if err := os.MkdirAll(*uploadDir, 0o750); err != nil {
 		log.Fatalf("no pude crear el directorio de uploads: %v", err)
 	}
 	uploadsDir = *uploadDir

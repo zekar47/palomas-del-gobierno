@@ -1,0 +1,154 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "palomas-del-gobierno: EC2 (AL2023) + SG 8080 + EIP + S3 artifacts. LearnerLab-safe: sin recursos AWS::IAM::*."
+
+Parameters:
+  InstanceType:
+    Type: String
+    Default: t3.micro
+    Description: "Tipo de instancia EC2."
+  KeyName:
+    Type: String
+    Default: ""
+    Description: "KeyPair opcional para SSH (vacío = sin KeyName). Nota: el SG no abre el puerto 22."
+  AllowedCidr:
+    Type: String
+    Default: 0.0.0.0/0
+    Description: "CIDR permitido para HTTP 8080."
+    AllowedPattern: "^([0-9]{1,3}\\.){3}[0-9]{1,3}/[0-9]{1,2}$"
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Default: vpc-02414cab91c6463bb
+    Description: "VPC donde se crea el SecurityGroup (default: VPC default del lab)."
+  AmiId:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64
+    Description: "AMI Amazon Linux 2023 x86_64 (resuelta vía SSM)."
+
+Conditions:
+  HasKeyName: !Not [!Equals [!Ref KeyName, ""]]
+
+Resources:
+  AppSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: "palomas-del-gobierno: HTTP 8080 (sin SSH)"
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 8080
+          ToPort: 8080
+          CidrIp: !Ref AllowedCidr
+          Description: "HTTP app palomas"
+      SecurityGroupEgress:
+        - IpProtocol: "-1"
+          CidrIp: 0.0.0.0/0
+          Description: "salida libre (SSM, yum, etc.)"
+      Tags:
+        - Key: Name
+          Value: palomas-sg
+
+  AppInstance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !Ref AmiId
+      InstanceType: !Ref InstanceType
+      KeyName: !If [HasKeyName, !Ref KeyName, !Ref AWS::NoValue]
+      SecurityGroupIds:
+        - !Ref AppSecurityGroup
+      IamInstanceProfile: LabInstanceProfile
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs:
+            VolumeSize: 8
+            VolumeType: gp3
+            DeleteOnTermination: true
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          set -eux
+          # AL2023 ya trae amazon-ssm-agent instalado y activo; no se instala nada extra.
+          if ! id palomas >/dev/null 2>&1; then
+            useradd -r -m -s /bin/false palomas
+          fi
+          mkdir -p /opt/palomas/bin /opt/palomas/uploads /var/lib/palomas
+          chown -R palomas:palomas /opt/palomas /var/lib/palomas
+          chmod 755 /opt/palomas /opt/palomas/bin /opt/palomas/uploads /var/lib/palomas
+          head -c 16 /dev/urandom | od -An -tx1 | tr -d ' \n' > /tmp/palomas-pwhex
+          PALOMAS_PW=$(cat /tmp/palomas-pwhex)
+          rm -f /tmp/palomas-pwhex
+          printf 'PALOMAS_ADMIN_PASSWORD=%s\n' "$PALOMAS_PW" > /etc/palomas.env
+          chmod 600 /etc/palomas.env
+          cat > /etc/systemd/system/palomas.service <<'UNIT'
+          [Unit]
+          Description=palomas-del-gobierno
+          After=network-online.target
+          Wants=network-online.target
+          [Service]
+          Type=simple
+          User=palomas
+          EnvironmentFile=/etc/palomas.env
+          ExecStart=/opt/palomas/bin/palomas --addr :8080 --db /var/lib/palomas/palomas.db --uploads /opt/palomas/uploads
+          Restart=always
+          RestartSec=5
+          [Install]
+          WantedBy=multi-user.target
+          UNIT
+          systemctl daemon-reload
+          systemctl enable palomas.service
+          # NO se hace start: el binario aun no existe (llega con el primer deploy).
+          # Restart=always reintentara el arranque hasta que el binario este presente.
+      Tags:
+        - Key: Name
+          Value: palomas-app
+
+  AppEIP:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+      Tags:
+        - Key: Name
+          Value: palomas-eip
+
+  AppEIPAssociation:
+    Type: AWS::EC2::EIPAssociation
+    Properties:
+      InstanceId: !Ref AppInstance
+      AllocationId: !GetAtt AppEIP.AllocationId
+
+  ArtifactsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: palomas-artifacts-647810064126
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      VersioningConfiguration:
+        Status: Suspended
+      LifecycleConfiguration:
+        Rules:
+          - Id: AbortIncompleteMultipartUploads
+            Status: Enabled
+            AbortIncompleteMultipartUpload:
+              DaysAfterInitiation: 7
+      Tags:
+        - Key: Name
+          Value: palomas-artifacts
+
+Outputs:
+  InstanceId:
+    Description: "ID de la instancia EC2."
+    Value: !Ref AppInstance
+  ElasticIP:
+    Description: "IP elástica asociada (app en puerto 8080)."
+    Value: !Ref AppEIP
+  BucketName:
+    Description: "Bucket S3 de artefactos."
+    Value: !Ref ArtifactsBucket
+  SecurityGroupId:
+    Description: "SecurityGroup de la app."
+    Value: !Ref AppSecurityGroup

@@ -37,6 +37,9 @@ func createSession(w http.ResponseWriter, userID int64) {
 	sessionsMu.Lock()
 	sessions[token] = &Session{UserID: userID, CSRF: randHex(16)}
 	sessionsMu.Unlock()
+	// #nosec G124 -- sin Secure a propósito: la app sirve HTTP plano (sin TLS)
+	// por diseño; Secure impediría que el navegador envíe la cookie.
+	// HttpOnly + SameSite=Lax mitigan XSS/CSRF. Activar Secure al poner TLS.
 	http.SetCookie(w, &http.Cookie{
 		Name:     sessionCookie,
 		Value:    token,
@@ -53,6 +56,7 @@ func destroySession(w http.ResponseWriter, r *http.Request) {
 		delete(sessions, c.Value)
 		sessionsMu.Unlock()
 	}
+	// #nosec G124 -- igual que createSession: HTTP plano por diseño, sin Secure.
 	http.SetCookie(w, &http.Cookie{
 		Name: sessionCookie, Value: "", Path: "/", HttpOnly: true, MaxAge: -1,
 	})
@@ -102,6 +106,8 @@ func validCSRF(r *http.Request) bool {
 func requireLogin(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if currentUser(r) == nil {
+			// #nosec G710 -- el destino Location es la ruta fija /login; solo el
+			// valor del query param next deriva del request, ya escapado.
 			http.Redirect(w, r, "/login?next="+urlEscape(r.URL.RequestURI()), http.StatusSeeOther)
 			return
 		}
@@ -120,6 +126,7 @@ func requireAdmin(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		u := currentUser(r)
 		if !u.isAdmin() {
+			// #nosec G710 -- igual que requireLogin: Location fijo a /login.
 			http.Redirect(w, r, "/login?next="+urlEscape(r.URL.RequestURI()), http.StatusSeeOther)
 			return
 		}
@@ -175,8 +182,10 @@ func loginUser(username, password string) (*User, error) {
 	err := db.QueryRow(`SELECT id, password_hash FROM users WHERE username = ?`, username).
 		Scan(&id, &hash)
 	if err == sql.ErrNoRows {
-		// consume un poco de tiempo para no permitir enumerar usuarios
-		bcrypt.CompareHashAndPassword(
+		// consume un poco de tiempo para no permitir enumerar usuarios.
+		// El resultado se ignora a propósito: solo interesa igualar tiempos.
+		// #nosec G104 -- uso intencional como retardo, no como verificación
+		_ = bcrypt.CompareHashAndPassword(
 			[]byte("$2a$10$7EqJtq98hPqEX7fNZaFWoOhiA0Wkn8kTZ3oP7Z2kX8k9j2j5Wl1uG"),
 			[]byte(password))
 		return nil, errBadCreds

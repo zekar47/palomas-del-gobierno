@@ -414,6 +414,8 @@ func saveUpload(r *http.Request, field string, allowed map[string]bool, maxBytes
 		return "", fmt.Errorf("archivo demasiado grande (máx %d MB)", maxBytes>>20)
 	}
 	name := fmt.Sprintf("%s-%s%s", randHex(8), strconv.FormatInt(time.Now().UnixNano(), 36), ext)
+	// #nosec G304 -- el nombre es generado por el servidor (rand+timestamp) con
+	// extensión de whitelist; el usuario no controla la ruta resultante.
 	dst, err := os.Create(filepath.Join(uploadsDir, name))
 	if err != nil {
 		return "", err
@@ -583,7 +585,9 @@ func logoutPost(w http.ResponseWriter, r *http.Request) {
 }
 
 func safeNext(s string) string {
-	if s == "" || !strings.HasPrefix(s, "/") {
+	// Solo rutas absolutas internas. Se rechaza "//..." porque los
+	// navegadores lo interpretan como URL protocol-relative (open redirect).
+	if s == "" || !strings.HasPrefix(s, "/") || strings.HasPrefix(s, "//") {
 		return "/"
 	}
 	return s
@@ -597,7 +601,9 @@ func previewHandler(w http.ResponseWriter, r *http.Request) {
 	body := r.PostFormValue("body")
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
-	io.WriteString(w, string(renderMarkdown(body)))
+	if _, err := io.WriteString(w, string(renderMarkdown(body))); err != nil {
+		log.Printf("ERROR escribiendo preview: %v", err)
+	}
 }
 
 func notFoundHandler(w http.ResponseWriter, r *http.Request) {

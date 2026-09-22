@@ -23,6 +23,8 @@ func renderMarkdown(src string) template.HTML {
 	if err := mdRenderer.Convert([]byte(src), &buf); err != nil {
 		return template.HTML("<p>[error al renderizar markdown]</p>")
 	}
+	// #nosec G203 -- el renderer Goldmark se configuró SIN html.WithUnsafe,
+	// así que el HTML crudo del input se escapa en vez de inyectarse.
 	return template.HTML(buf.String())
 }
 
@@ -47,6 +49,8 @@ func postHTML(p *Post) template.HTML {
 		b.WriteString(htmlEscape(p.VideoPath))
 		b.WriteString(`">descargar video</a></figcaption></figure>`)
 	}
+	// #nosec G203 -- paths escapados con htmlEscape; cuerpo vía renderMarkdown
+	// (Goldmark sin unsafe). El HTML compuesto es seguro por construcción.
 	return template.HTML(b.String())
 }
 

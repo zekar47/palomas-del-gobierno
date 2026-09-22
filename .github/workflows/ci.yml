@@ -1,0 +1,97 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: go vet + gofmt
+        run: |
+          go vet ./...
+          test -z "$(gofmt -l . | grep -v '^vendor/')" || (echo "archivos sin formatear"; gofmt -l . | grep -v '^vendor/'; exit 1)
+
+      - name: Tests + gate de cobertura (>=80%)
+        run: ./scripts/check_coverage.sh
+
+      - name: Subir reporte HTML de cobertura
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-html
+          path: coverage.html
+
+      - name: Compilar binario linux/amd64
+        run: GOOS=linux GOARCH=amd64 go build -o palomas-linux-amd64 .
+
+      - name: gosec (SARIF)
+        run: |
+          go install github.com/securego/gosec/v2/cmd/gosec@latest
+          $(go env GOPATH)/bin/gosec -no-fail -fmt sarif -out gosec.sarif ./...
+
+      - name: Subir SARIF a Code Scanning
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: gosec.sarif
+
+      - name: govulncheck
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          $(go env GOPATH)/bin/govulncheck ./...
+
+      - name: Cobertura para SonarCloud
+        run: |
+          go install github.com/t-yuki/gocover2sonar@latest
+          $(go env GOPATH)/bin/gocover2sonar -infile coverage.out -outfile coverage-sonar.xml
+
+      - name: Subir coverage-sonar.xml
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-sonar
+          path: coverage-sonar.xml
+
+  sonar:
+    needs: test
+    if: ${{ secrets.SONAR_TOKEN != '' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Descargar coverage-sonar.xml
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage-sonar
+
+      - name: Análisis SonarCloud
+        uses: SonarSource/sonarcloud-github-action@v3
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+      - name: Reporte de métricas
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_PROJECT_KEY: zekar47_palomas-del-gobierno
+        run: |
+          ./scripts/sonar_metrics.sh
+          cat docs/metrics/calidad.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Subir reporte de métricas
+        uses: actions/upload-artifact@v4
+        with:
+          name: metricas-calidad
+          path: docs/metrics/calidad.md

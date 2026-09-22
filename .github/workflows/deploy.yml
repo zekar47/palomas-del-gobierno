@@ -1,0 +1,70 @@
+name: Deploy
+
+# Se ejecuta solo cuando CI terminó en verde sobre main (gating real),
+# o manualmente con workflow_dispatch (bootstrap tras recrear el stack).
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    env:
+      AWS_REGION: us-east-1
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Compilar binario linux/amd64
+        run: GOOS=linux GOARCH=amd64 go build -o palomas-linux-amd64 .
+
+      - name: Configurar credenciales AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: us-east-1
+
+      - name: Subir binario a S3
+        run: aws s3 cp palomas-linux-amd64 s3://${{ vars.PALOMAS_BUCKET }}/palomas-linux-amd64
+
+      - name: Desplegar vía SSM + health check
+        env:
+          INSTANCE_ID: ${{ vars.PALOMAS_INSTANCE_ID }}
+          BUCKET: ${{ vars.PALOMAS_BUCKET }}
+          APP_URL: ${{ vars.PALOMAS_APP_URL }}
+        run: |
+          CMDS="aws s3 cp s3://$BUCKET/palomas-linux-amd64 /opt/palomas/bin/palomas && chmod +x /opt/palomas/bin/palomas && systemctl restart palomas && sleep 3 && systemctl is-active palomas && curl -fsS http://localhost:8080/ -o /dev/null"
+          CMD_ID=$(aws ssm send-command --instance-ids "$INSTANCE_ID" \
+            --document-name AWS-RunShellScript --comment "deploy palomas $GITHUB_SHA" \
+            --parameters commands="$CMDS" --query 'Command.CommandId' --output text)
+          echo "command: $CMD_ID"
+          for i in $(seq 1 24); do
+            sleep 5
+            STATUS=$(aws ssm get-command-invocation --command-id "$CMD_ID" \
+              --instance-id "$INSTANCE_ID" --query Status --output text 2>/dev/null || echo "InProgress")
+            echo "intento $i: $STATUS"
+            [ "$STATUS" = "Success" ] && break
+            [ "$STATUS" = "InProgress" ] || [ "$STATUS" = "Pending" ] || [ "$STATUS" = "Delayed" ] || {
+              aws ssm get-command-invocation --command-id "$CMD_ID" --instance-id "$INSTANCE_ID"
+              exit 1
+            }
+          done
+          [ "$STATUS" = "Success" ] || { echo "SSM no llegó a Success"; exit 1; }
+          for i in $(seq 1 12); do
+            sleep 5
+            curl -fsS "$APP_URL/" -o /dev/null && { echo "salud OK: $APP_URL"; exit 0; }
+          done
+          echo "health check falló: $APP_URL"
+          exit 1
