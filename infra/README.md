@@ -7,7 +7,7 @@ Stack CloudFormation LearnerLab-safe (región `us-east-1`, cuenta `647810064126`
 | Recurso lógico | Tipo | Detalle |
 |---|---|---|
 | `AppSecurityGroup` | `AWS::EC2::SecurityGroup` | En la VPC default (`vpc-02414cab91c6463bb`). Ingress TCP **8080** desde `AllowedCidr` (default `0.0.0.0/0`). **Sin puerto 22.** Egress todo permitido. Tag `Name=palomas-sg`. |
-| `AppInstance` | `AWS::EC2::Instance` | Amazon Linux 2023 x86_64 (vía SSM `/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64`), tipo `t3.micro`, root gp3 8 GB, `IamInstanceProfile: {Name: LabInstanceProfile}` (literal, sin Ref). Tag `Name=palomas-app`. |
+| `AppInstance` | `AWS::EC2::Instance` | Amazon Linux 2023 x86_64 (vía SSM `/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64`), tipo `t3.micro`, root gp3 8 GB, `IamInstanceProfile: LabInstanceProfile` (string literal con el nombre del profile existente; esa propiedad es String en CFN). Tag `Name=palomas-app`. |
 | `AppEIP` + `AppEIPAssociation` | `AWS::EC2::EIP` + asociación | IP elástica asociada a la instancia. |
 | `ArtifactsBucket` | `AWS::S3::Bucket` | Nombre fijo `palomas-artifacts-647810064126`. `BucketOwnerEnforced`, bloqueo público total, versionado suspendido, lifecycle que aborta multipart uploads incompletos a los 7 días. |
 
@@ -17,8 +17,13 @@ crea el usuario `palomas`, los directorios `/opt/palomas/bin`, `/opt/palomas/upl
 `PALOMAS_ADMIN_PASSWORD=<16 bytes hex de /dev/urandom>` (chmod 600), crea la unit
 systemd `palomas.service` (`ExecStart=/opt/palomas/bin/palomas --addr :8080
 --db /var/lib/palomas/palomas.db --uploads /opt/palomas/uploads`,
-`EnvironmentFile=/etc/palomas.env`, `Restart=always`, `User=palomas`) y hace
-`daemon-reload` + `enable`.
+`WorkingDirectory=/opt/palomas`, `EnvironmentFile=/etc/palomas.env`,
+`Restart=always`, `User=palomas`) y hace `daemon-reload` + `enable`.
+
+> `WorkingDirectory=/opt/palomas` es obligatorio: el binario carga
+> `templates/` y sirve `static/` con rutas relativas. Cada deploy sincroniza
+> esas carpetas desde S3 (`scripts/instance_deploy.sh` hace
+> `aws s3 sync s3://<bucket>/templates|static/ /opt/palomas/...`).
 
 ## Desplegar
 

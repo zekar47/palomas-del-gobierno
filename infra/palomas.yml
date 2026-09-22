@@ -86,6 +86,7 @@ Resources:
           [Service]
           Type=simple
           User=palomas
+          WorkingDirectory=/opt/palomas
           EnvironmentFile=/etc/palomas.env
           ExecStart=/opt/palomas/bin/palomas --addr :8080 --db /var/lib/palomas/palomas.db --uploads /opt/palomas/uploads
           Restart=always

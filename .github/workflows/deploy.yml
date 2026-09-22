@@ -36,8 +36,12 @@ jobs:
           aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
           aws-region: us-east-1
 
-      - name: Subir binario a S3
-        run: aws s3 cp palomas-linux-amd64 s3://${{ vars.PALOMAS_BUCKET }}/palomas-linux-amd64
+      - name: Subir artefactos a S3
+        run: |
+          aws s3 cp palomas-linux-amd64 s3://${{ vars.PALOMAS_BUCKET }}/palomas-linux-amd64
+          aws s3 cp scripts/instance_deploy.sh s3://${{ vars.PALOMAS_BUCKET }}/instance_deploy.sh
+          aws s3 sync templates/ s3://${{ vars.PALOMAS_BUCKET }}/templates/ --delete
+          aws s3 sync static/ s3://${{ vars.PALOMAS_BUCKET }}/static/ --delete
 
       - name: Desplegar vía SSM + health check
         env:
@@ -45,10 +49,10 @@ jobs:
           BUCKET: ${{ vars.PALOMAS_BUCKET }}
           APP_URL: ${{ vars.PALOMAS_APP_URL }}
         run: |
-          CMDS="aws s3 cp s3://$BUCKET/palomas-linux-amd64 /opt/palomas/bin/palomas && chmod +x /opt/palomas/bin/palomas && systemctl restart palomas && sleep 3 && systemctl is-active palomas && curl -fsS http://localhost:8080/ -o /dev/null"
           CMD_ID=$(aws ssm send-command --instance-ids "$INSTANCE_ID" \
             --document-name AWS-RunShellScript --comment "deploy palomas $GITHUB_SHA" \
-            --parameters commands="$CMDS" --query 'Command.CommandId' --output text)
+            --parameters "{\"commands\":[\"aws s3 cp s3://$BUCKET/instance_deploy.sh /tmp/instance_deploy.sh && bash /tmp/instance_deploy.sh $BUCKET\"]}" \
+            --query 'Command.CommandId' --output text)
           echo "command: $CMD_ID"
           for i in $(seq 1 24); do
             sleep 5

@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Despliegue local (el método primario en LearnerLab: las credenciales de la
 # lab viven en esta máquina y rotan; GitHub Actions usa copias vía secrets).
+# Sube binario + script de instancia + templates/static a S3 y ejecuta UN solo
+# comando SSM que converge la instancia y verifica salud.
 # Uso: ./scripts/deploy.sh
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -20,17 +22,20 @@ echo "instancia: $INSTANCE_ID | bucket: $BUCKET | url: $APP_URL"
 echo "== compilar linux/amd64 =="
 GOOS=linux GOARCH=amd64 go build -o /tmp/opencode/palomas-linux-amd64 .
 
-echo "== subir a s3://$BUCKET =="
+echo "== subir artefactos a s3://$BUCKET =="
 aws s3 cp /tmp/opencode/palomas-linux-amd64 "s3://$BUCKET/palomas-linux-amd64" --region "$REGION"
+aws s3 cp scripts/instance_deploy.sh "s3://$BUCKET/instance_deploy.sh" --region "$REGION"
+aws s3 sync templates/ "s3://$BUCKET/templates/" --delete --region "$REGION"
+aws s3 sync static/ "s3://$BUCKET/static/" --delete --region "$REGION"
 
-echo "== instalar + reiniciar vía SSM =="
-CMDS="aws s3 cp s3://$BUCKET/palomas-linux-amd64 /opt/palomas/bin/palomas && chmod +x /opt/palomas/bin/palomas && systemctl restart palomas && sleep 3 && systemctl is-active palomas && curl -fsS http://localhost:8080/ -o /dev/null"
+echo "== desplegar vía SSM =="
 CMD_ID=$(aws ssm send-command --region "$REGION" --instance-ids "$INSTANCE_ID" \
 	--document-name AWS-RunShellScript --comment "deploy palomas local" \
-	--parameters commands="$CMDS" --query 'Command.CommandId' --output text)
+	--parameters "{\"commands\":[\"aws s3 cp s3://$BUCKET/instance_deploy.sh /tmp/instance_deploy.sh && bash /tmp/instance_deploy.sh $BUCKET\"]}" \
+	--query 'Command.CommandId' --output text)
 echo "command: $CMD_ID"
 STATUS="Pending"
-for i in $(seq 1 24); do
+for i in $(seq 1 36); do
 	sleep 5
 	STATUS=$(aws ssm get-command-invocation --region "$REGION" --command-id "$CMD_ID" \
 		--instance-id "$INSTANCE_ID" --query Status --output text 2>/dev/null || echo "InProgress")
