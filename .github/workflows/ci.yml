@@ -41,9 +41,9 @@ jobs:
         run: GOOS=linux GOARCH=amd64 go build -o palomas-linux-amd64 .
 
       - name: gosec (SARIF)
-        run: |
-          go install github.com/securego/gosec/v2/cmd/gosec@v2.29.0
-          $(go env GOPATH)/bin/gosec -no-fail -fmt sarif -out gosec.sarif ./...
+        uses: securego/gosec@deb54465fea23d19a77f037e11e6589021f8501d # v2.29.0
+        with:
+          args: -no-fail -fmt sarif -out gosec.sarif ./...
 
       - name: Subir SARIF a Code Scanning
         uses: github/codeql-action/upload-sarif@3ea06614dafe36dec890db3446326e0d40ce53d4 # v3
@@ -51,9 +51,12 @@ jobs:
           sarif_file: gosec.sarif
 
       - name: govulncheck
-        run: |
-          go install golang.org/x/vuln/cmd/govulncheck@v1.8.0
-          $(go env GOPATH)/bin/govulncheck ./...
+        uses: golang/govulncheck-action@032d45514ae346b1db93c04b0c90b841c370344f # v1.1.0
+        with:
+          go-version-file: go.mod
+          go-package: ./...
+          repo-checkout: 'false'
+          check-latest: false
 
       - name: Subir coverage.out (formato gocover, lo lee SonarCloud)
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

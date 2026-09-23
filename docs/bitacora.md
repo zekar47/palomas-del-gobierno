@@ -185,9 +185,10 @@ issues/hotspots) para tener accionables sin entrar a la UI.
 ## 2026-09-23 — Primer reporte Sonar real + fixes a sus hallazgos (ronda 1)
 
 Qué: el reporte ya trae datos (bugs 0, vulnerabilidades 12, smells 17, deuda
-34 min, cobertura 86.8%, duplicación 0%, fiabilidad A, seguridad C;
-mantenibilidad quedó `?`: la clave `maintainability_rating` no existe en esta
-versión — pendiente averiguar la correcta).
+34 min, cobertura 86.8%, duplicación 0%, fiabilidad A, seguridad C).
+Mantenibilidad salía `?` por bug MÍO: pedía la clave `sqale_rating` a la API
+pero el reporte leía `maintainability_rating` (siempre vacío). Arreglado el
+`get` (verificado en el script).
 Hallazgos accionables y su fix:
 - `[` vs `[[` en shell (10×): convertidos todos los `scripts/*.sh` a `[[ ]]`.
 - curl sin protocolo fijado (los `-L` podrían degradar a http en un redirect):
@@ -203,3 +204,12 @@ Hallazgos accionables y su fix:
 - Checkout con ref dinámica en `deploy.yml` ("untrusted code from fork"):
   aceptado y documentado — el trigger es solo `main`/`dispatch` en repo sin
   forks; no hay forma de que un fork lo dispare.
+
+## 2026-09-23 — Sonar ronda 2: `go install` → actions oficiales
+
+Qué: Sonar marcó los `go install pkg@version` como dependencias no
+predecibles (aun pineados). En vez de discutir la regla, se eliminó la
+construcción: `gosec` ahora corre vía `securego/gosec@v2.29.0` (pineado a SHA,
+mismo SARIF para Code Scanning) y `govulncheck` vía la action oficial
+`golang/govulncheck-action@v1.1.0` (pineada a SHA, sin checkout duplicado).
+Verificación pendiente: CI en curso.

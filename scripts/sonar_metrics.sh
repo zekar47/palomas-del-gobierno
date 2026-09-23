@@ -80,7 +80,7 @@ if [[ "$SONAR_OK" = "sí" ]]; then
 	NCLOC=$(get ncloc)
 	REL=$(rating_letra "$(get reliability_rating)")
 	SEC=$(rating_letra "$(get security_rating)")
-	MAIN=$(rating_letra "$(get maintainability_rating)")
+	MAIN=$(rating_letra "$(get sqale_rating)")
 else
 	BUGS="?" ; VULNS="?" ; HOTSPOTS="?" ; SMELLS="?" ; DEBT="?"
 	COV="?" ; DUPL="?" ; NCLOC="?" ; REL="?" ; SEC="?" ; MAIN="?"
