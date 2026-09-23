@@ -27,7 +27,10 @@ RestartSec=5
 WantedBy=multi-user.target
 UNIT
 systemctl daemon-reload
-systemctl enable --now palomas.service
+# enable + restart (no --now: si el servicio ya corría con un binario viejo,
+# --now NO lo reinicia y quedaría sirviendo código obsoleto).
+systemctl enable palomas.service
+systemctl restart palomas.service
 
 for i in $(seq 1 6); do
 	sleep 5
@@ -90,7 +93,9 @@ RestartSec=5
 WantedBy=multi-user.target
 UNIT
 systemctl daemon-reload
-systemctl enable --now caddy.service
+systemctl enable caddy.service
+# reload-or-restart: recarga el Caddyfile sin cortar conexiones si ya corría.
+systemctl reload-or-restart caddy.service
 
 # La primera emisión Let's Encrypt puede tardar ~1 min (desafío ACME en :80).
 OK=0
