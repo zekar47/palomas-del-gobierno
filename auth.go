@@ -146,6 +146,19 @@ func requireAdmin(next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
+// requireMember exige poder gestionar noticias (admin o miembro de la banda).
+func requireMember(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		u := currentUser(r)
+		if !u.canPostNews() {
+			// #nosec G710 -- igual que requireLogin: Location fijo a /login.
+			http.Redirect(w, r, "/login?next="+urlEscape(r.URL.RequestURI()), http.StatusSeeOther)
+			return
+		}
+		next(w, r)
+	}
+}
+
 // requirePostCSRF valida el token CSRF en POST para las rutas autenticadas.
 // Además limita el tamaño del cuerpo antes de leerlo (uploads incluidos).
 func requirePostCSRF(next http.HandlerFunc) http.HandlerFunc {

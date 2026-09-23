@@ -214,6 +214,21 @@ mismo SARIF para Code Scanning) y `govulncheck` vía la action oficial
 `golang/govulncheck-action@v1.1.0` (pineada a SHA, sin checkout duplicado).
 Verificación pendiente: CI en curso.
 
+## 2026-09-23 — Cuentas e hilos editables (1/3): capa de datos
+
+Qué: nuevo rol `member` (puede gestionar noticias, nada más), edición propia
+de hilos/comentarios, administración de usuarios y autogestión de cuenta.
+Decisiones: `member` crea noticias y solo edita/borra las SUYAS (admin todo);
+editar/borrar hilos y comentarios = autor + admin; jamás dejar cero admins
+(guard en `setUserRole` y `deleteUser`, protege ambos flujos); borrar usuario
+borra en transacción todo su contenido (posts con archivos, comentarios,
+hilos, respuestas, reacciones).
+Migración: `meta.schema_version` (2). La v2 reconstruye `users` para ampliar
+el CHECK a `member` (SQLite no tiene ALTER CHECK), con FK apagadas solo en la
+conexión dedicada y `foreign_key_check` al final. Idempotente.
+Verificación: `db_roles_test.go` (migración desde esquema viejo simulado,
+roles, cascada completa, mutaciones) en verde.
+
 ## 2026-09-23 — Cierre: Quality Gate en OK y métricas commiteadas
 
 Qué: tras la ronda 2 el reporte quedó: bugs 0, vulnerabilidades 5 (todas

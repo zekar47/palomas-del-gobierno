@@ -1,8 +1,10 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 
 	"golang.org/x/crypto/bcrypt"
 )
@@ -14,7 +16,7 @@ CREATE TABLE IF NOT EXISTS users (
   id            INTEGER PRIMARY KEY AUTOINCREMENT,
   username      TEXT UNIQUE NOT NULL COLLATE NOCASE,
   password_hash TEXT NOT NULL,
-  role          TEXT NOT NULL DEFAULT 'user' CHECK (role IN ('admin','user')),
+  role          TEXT NOT NULL DEFAULT 'user' CHECK (role IN ('admin','member','user')),
   created_at    TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -68,8 +70,87 @@ CREATE INDEX IF NOT EXISTS idx_replies_thread  ON replies(thread_id);
 `
 
 func migrate() error {
-	_, err := db.Exec(schema)
-	return err
+	// Conexión dedicada: las PRAGMA de claves foráneas son por conexión y la
+	// migración de roles necesita apagarlas durante la reconstrucción.
+	ctx := context.Background()
+	conn, err := db.Conn(ctx)
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+
+	if _, err := conn.ExecContext(ctx, schema); err != nil {
+		return err
+	}
+	if _, err := conn.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS meta(k TEXT PRIMARY KEY, v TEXT NOT NULL)`); err != nil {
+		return err
+	}
+	version := 0
+	var vstr string
+	err = conn.QueryRowContext(ctx, `SELECT v FROM meta WHERE k = 'schema_version'`).Scan(&vstr)
+	switch {
+	case err == nil:
+		fmt.Sscanf(vstr, "%d", &version)
+	case err == sql.ErrNoRows:
+		version = 0
+	default:
+		return err
+	}
+	if version < 2 {
+		if err := migrateTo2(ctx, conn); err != nil {
+			return err
+		}
+		if _, err := conn.ExecContext(ctx, `INSERT INTO meta(k, v) VALUES ('schema_version', '2') ON CONFLICT(k) DO UPDATE SET v = '2'`); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// migrateTo2 amplía el CHECK de users.role a ('admin','member','user').
+// SQLite no permite ALTER CHECK: se reconstruye la tabla en una transacción
+// con las FK apagadas (solo en esta conexión) y se verifica integridad al
+// final. Es idempotente vía meta.schema_version.
+func migrateTo2(ctx context.Context, conn *sql.Conn) error {
+	if _, err := conn.ExecContext(ctx, `PRAGMA foreign_keys=OFF`); err != nil {
+		return err
+	}
+	defer conn.ExecContext(ctx, `PRAGMA foreign_keys=ON`)
+
+	tx, err := conn.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	stmts := []string{
+		`CREATE TABLE users_new (
+		   id            INTEGER PRIMARY KEY AUTOINCREMENT,
+		   username      TEXT UNIQUE NOT NULL COLLATE NOCASE,
+		   password_hash TEXT NOT NULL,
+		   role          TEXT NOT NULL DEFAULT 'user' CHECK (role IN ('admin','member','user')),
+		   created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+		 )`,
+		`INSERT INTO users_new (id, username, password_hash, role, created_at)
+		   SELECT id, username, password_hash, role, created_at FROM users`,
+		`DROP TABLE users`,
+		`ALTER TABLE users_new RENAME TO users`,
+	}
+	for _, s := range stmts {
+		if _, err := tx.ExecContext(ctx, s); err != nil {
+			return err
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	var bad int
+	if err := conn.QueryRowContext(ctx, `SELECT COUNT(*) FROM pragma_foreign_key_check`).Scan(&bad); err != nil {
+		return err
+	}
+	if bad > 0 {
+		return fmt.Errorf("integridad rota tras migración: %d filas huérfanas", bad)
+	}
+	return nil
 }
 
 // seedAdmin crea el usuario administrador inicial si no existe ninguno.
@@ -175,6 +256,164 @@ func getUserByName(name string) (*User, error) {
 
 func (u *User) isAdmin() bool { return u != nil && u.Role == "admin" }
 
+// IsAdmin es la versión exportada para plantillas.
+func (u *User) IsAdmin() bool { return u.isAdmin() }
+
+// canPostNews indica si puede gestionar noticias (admin o miembro de la banda).
+func (u *User) canPostNews() bool {
+	return u != nil && (u.Role == "admin" || u.Role == "member")
+}
+
+// CanPostNews es la versión exportada para plantillas.
+func (u *User) CanPostNews() bool { return u.canPostNews() }
+
+// canEdit indica si puede editar/borrar contenido ajeno-propio: autor o admin.
+func canEdit(u *User, authorID int64) bool {
+	return u != nil && (u.isAdmin() || u.ID == authorID)
+}
+
+func listUsers() ([]*User, error) {
+	rows, err := db.Query(`SELECT id, username, role, created_at FROM users ORDER BY id ASC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []*User
+	for rows.Next() {
+		u := &User{}
+		if err := rows.Scan(&u.ID, &u.Username, &u.Role, &u.CreatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, u)
+	}
+	return out, rows.Err()
+}
+
+func countAdmins() (int, error) {
+	var n int
+	err := db.QueryRow(`SELECT COUNT(*) FROM users WHERE role = 'admin'`).Scan(&n)
+	return n, err
+}
+
+// setUserRole cambia entre 'user' y 'member'. Promover a admin no está
+// soportado por UI (evita escaladas accidentales) y nunca deja cero admins.
+func setUserRole(id int64, role string) error {
+	if role != "user" && role != "member" {
+		return fmt.Errorf("rol inválido: %s", role)
+	}
+	u, err := getUser(id)
+	if err != nil {
+		return err
+	}
+	if u.Role == "admin" {
+		n, err := countAdmins()
+		if err != nil {
+			return err
+		}
+		if n <= 1 {
+			return fmt.Errorf("no se puede degradar al último admin")
+		}
+	}
+	_, err = db.Exec(`UPDATE users SET role = ? WHERE id = ?`, role, id)
+	return err
+}
+
+func updateUsername(id int64, name string) error {
+	name = strings.TrimSpace(name)
+	if len(name) < 3 || len(name) > 24 {
+		return fmt.Errorf("el nombre de usuario debe tener entre 3 y 24 caracteres")
+	}
+	if existing, err := getUserByName(name); err == nil && existing.ID != id {
+		return fmt.Errorf("ese nombre de usuario ya está ocupado")
+	}
+	_, err := db.Exec(`UPDATE users SET username = ? WHERE id = ?`, name, id)
+	return err
+}
+
+func verifyPassword(id int64, password string) bool {
+	var hash string
+	if err := db.QueryRow(`SELECT password_hash FROM users WHERE id = ?`, id).Scan(&hash); err != nil {
+		return false
+	}
+	return bcrypt.CompareHashAndPassword([]byte(hash), []byte(password)) == nil
+}
+
+func setPassword(id int64, password string) error {
+	if len(password) < 6 {
+		return fmt.Errorf("la contraseña debe tener al menos 6 caracteres")
+	}
+	h, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return err
+	}
+	_, err = db.Exec(`UPDATE users SET password_hash = ? WHERE id = ?`, string(h), id)
+	return err
+}
+
+// deleteUser borra la cuenta y TODO su contenido (posts con sus archivos,
+// comentarios, hilos, respuestas, reacciones). Devuelve las rutas de archivos
+// para que el llamador las borre del disco. Nunca deja cero admins.
+func deleteUser(id int64) ([]string, error) {
+	u, err := getUser(id)
+	if err != nil {
+		return nil, err
+	}
+	if u.Role == "admin" {
+		n, err := countAdmins()
+		if err != nil {
+			return nil, err
+		}
+		if n <= 1 {
+			return nil, fmt.Errorf("no se puede eliminar al último admin")
+		}
+	}
+	tx, err := db.Begin()
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+
+	var paths []string
+	rows, err := tx.Query(`SELECT image_path, video_path FROM posts WHERE author_id = ?`, id)
+	if err != nil {
+		return nil, err
+	}
+	for rows.Next() {
+		var img, vid string
+		if err := rows.Scan(&img, &vid); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		paths = append(paths, img, vid)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	for _, q := range []string{
+		`DELETE FROM reactions WHERE user_id = ?`,
+		`DELETE FROM comments WHERE user_id = ?`,
+		`DELETE FROM replies WHERE user_id = ?`,
+		`DELETE FROM threads WHERE user_id = ?`,
+		`DELETE FROM posts WHERE author_id = ?`,
+		`DELETE FROM users WHERE id = ?`,
+	} {
+		if _, err := tx.Exec(q, id); err != nil {
+			return nil, err
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	var out []string
+	for _, p := range paths {
+		if p != "" {
+			out = append(out, p)
+		}
+	}
+	return out, nil
+}
+
 // ---------------------------------------------------------------------------
 // noticias
 // ---------------------------------------------------------------------------
@@ -218,6 +457,29 @@ func listPosts(limit int) ([]*Post, error) {
 
 func getPost(id int64) (*Post, error) {
 	return scanPost(db.QueryRow(postSelect+` WHERE p.id = ?`, id))
+}
+
+func getComment(id int64) (*Comment, error) {
+	c := &Comment{}
+	err := db.QueryRow(`
+SELECT c.id, c.post_id, c.user_id, COALESCE(u.username,''), c.body, c.created_at
+FROM comments c JOIN users u ON u.id = c.user_id
+WHERE c.id = ?`, id).
+		Scan(&c.ID, &c.PostID, &c.UserID, &c.Username, &c.Body, &c.CreatedAt)
+	if err != nil {
+		return nil, err
+	}
+	return c, nil
+}
+
+func updateComment(id int64, body string) error {
+	_, err := db.Exec(`UPDATE comments SET body = ? WHERE id = ?`, body, id)
+	return err
+}
+
+func deleteComment(id int64) error {
+	_, err := db.Exec(`DELETE FROM comments WHERE id = ?`, id)
+	return err
 }
 
 func createPost(authorID int64, title, body string) (int64, error) {
@@ -346,6 +608,18 @@ func getThread(id int64) (*Thread, error) {
 		return nil, err
 	}
 	return t, nil
+}
+
+func updateThread(id int64, title, body string) error {
+	_, err := db.Exec(
+		`UPDATE threads SET title = ?, body = ?, updated_at = datetime('now') WHERE id = ?`,
+		title, body, id)
+	return err
+}
+
+func deleteThread(id int64) error {
+	_, err := db.Exec(`DELETE FROM threads WHERE id = ?`, id)
+	return err
 }
 
 func createThread(userID int64, title, body string) (int64, error) {
