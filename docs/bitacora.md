@@ -56,3 +56,16 @@ no romper `http://localhost` en desarrollo); `createSession` y
 impedirá falsificar esa cabecera desde fuera).
 Verificación: `TestCookieSecureFlag` (Secure on/off + logout), `TestAbsURL`
 con cabecera de proxy, `go vet`, `gosec` 0 issues.
+
+## 2026-09-23 — Fix Sonar línea 189: secreto hardcodeado (S2068)
+
+Qué: en `loginUser`, para igualar tiempos ante usuario inexistente se comparaba
+contra un hash bcrypt literal en el código. Sonar lo marcó (2 issues de
+responsabilidad): un secreto en el fuente no es confiable.
+Por qué fix real: se eliminó el literal. Ahora se genera un hash desechable
+con `bcrypt.GenerateFromPassword` (mismo orden de coste que una comparación,
+así que la protección anti-enumeración se mantiene) y el error se maneja
+explícito — de paso cayó un `#nosec G104` que ya no hace falta.
+Verificación: `TestLoginUser` (inexistente/clave mala siguen dando
+`errBadCreds`), `TestSQLiInocua`, `gosec` 0 issues con 7 supresiones (una
+menos que antes).

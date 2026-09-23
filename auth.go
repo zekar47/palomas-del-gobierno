@@ -194,12 +194,13 @@ func loginUser(username, password string) (*User, error) {
 	err := db.QueryRow(`SELECT id, password_hash FROM users WHERE username = ?`, username).
 		Scan(&id, &hash)
 	if err == sql.ErrNoRows {
-		// consume un poco de tiempo para no permitir enumerar usuarios.
-		// El resultado se ignora a propósito: solo interesa igualar tiempos.
-		// #nosec G104 -- uso intencional como retardo, no como verificación
-		_ = bcrypt.CompareHashAndPassword(
-			[]byte("$2a$10$7EqJtq98hPqEX7fNZaFWoOhiA0Wkn8kTZ3oP7Z2kX8k9j2j5Wl1uG"),
-			[]byte(password))
+		// Quema tiempo constante para no permitir enumerar usuarios por
+		// timing. Se genera un hash desechable en vez de comparar contra un
+		// hash fijo: así no hay ningún secreto hardcodeado en el código y el
+		// coste (bcrypt DefaultCost) es del mismo orden que una comparación.
+		if _, herr := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost); herr != nil {
+			return nil, herr
+		}
 		return nil, errBadCreds
 	}
 	if err != nil {
