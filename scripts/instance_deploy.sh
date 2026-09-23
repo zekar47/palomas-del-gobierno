@@ -52,8 +52,11 @@ if ! command -v caddy >/dev/null 2>&1; then
 	CADDY_VER="${CADDY_TAG#v}"
 	cd /tmp
 	rm -f caddy.tgz # resto de un intento anterior con nombre distinto
-	curl -fsSL -o "caddy_${CADDY_VER}_linux_amd64.tar.gz" "https://github.com/caddyserver/caddy/releases/download/${CADDY_TAG}/caddy_${CADDY_VER}_linux_amd64.tar.gz"
-	curl -fsSL -o caddy_checks.txt "https://github.com/caddyserver/caddy/releases/download/${CADDY_TAG}/caddy_${CADDY_VER}_checksums.txt"
+	# --proto '=https' + --tlsv1.2: curl sigue redirects (-L implícito en -fSL);
+	# sin fijar protocolo un redirect a http:// degradaría en silencio.
+	CURL_TLS="curl -fsSL --proto =https --tlsv1.2"
+	$CURL_TLS -o "caddy_${CADDY_VER}_linux_amd64.tar.gz" "https://github.com/caddyserver/caddy/releases/download/${CADDY_TAG}/caddy_${CADDY_VER}_linux_amd64.tar.gz"
+	$CURL_TLS -o caddy_checks.txt "https://github.com/caddyserver/caddy/releases/download/${CADDY_TAG}/caddy_${CADDY_VER}_checksums.txt"
 	grep "caddy_${CADDY_VER}_linux_amd64.tar.gz" caddy_checks.txt | sha512sum -c -
 	tar xzf "caddy_${CADDY_VER}_linux_amd64.tar.gz" caddy
 	install -m 0755 caddy /usr/local/bin/caddy
@@ -106,7 +109,7 @@ for i in $(seq 1 24); do
 		break
 	fi
 done
-if [ "$OK" != "1" ]; then
+if [[ "$OK" != "1" ]]; then
 	systemctl status caddy --no-pager || true
 	journalctl -u caddy --no-pager -n 40 || true
 	exit 1

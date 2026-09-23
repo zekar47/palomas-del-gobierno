@@ -181,3 +181,25 @@ Dos causas distintas:
    El `new_coverage 0.0` era (también) que nunca se aplicó cobertura.
 Además el reporte ahora lista hallazgos abiertos de seguridad (API
 issues/hotspots) para tener accionables sin entrar a la UI.
+
+## 2026-09-23 — Primer reporte Sonar real + fixes a sus hallazgos (ronda 1)
+
+Qué: el reporte ya trae datos (bugs 0, vulnerabilidades 12, smells 17, deuda
+34 min, cobertura 86.8%, duplicación 0%, fiabilidad A, seguridad C;
+mantenibilidad quedó `?`: la clave `maintainability_rating` no existe en esta
+versión — pendiente averiguar la correcta).
+Hallazgos accionables y su fix:
+- `[` vs `[[` en shell (10×): convertidos todos los `scripts/*.sh` a `[[ ]]`.
+- curl sin protocolo fijado (los `-L` podrían degradar a http en un redirect):
+  `--proto '=https' --tlsv1.2` en las descargas de Caddy. El `http://` a
+  metadatos EC2 (169.254.169.254) se queda: es link-local sin TLS posible, con
+  IMDSv2 por token (falso positivo documentado).
+- `security-events: write` a nivel workflow → movido a nivel job (solo el job
+  `test` lo necesita por upload-sarif).
+- `go install @latest` no reproducible → pineado (`gosec v2.29.0`,
+  `govulncheck v1.8.0`, versiones verificadas en proxy.golang.org).
+- Actions por tag mutable → pineadas a SHA completo con comentario de versión
+  (los 7 usados, SHAs resueltos vía API de GitHub).
+- Checkout con ref dinámica en `deploy.yml` ("untrusted code from fork"):
+  aceptado y documentado — el trigger es solo `main`/`dispatch` en repo sin
+  forks; no hay forma de que un fork lo dispare.

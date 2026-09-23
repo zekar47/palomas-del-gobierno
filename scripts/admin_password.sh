@@ -20,7 +20,7 @@ for i in $(seq 1 6); do
 	sleep 5
 	STATUS=$(aws ssm get-command-invocation --region "$REGION" --command-id "$CMD_ID" \
 		--instance-id "$INSTANCE_ID" --query Status --output text 2>/dev/null || echo InProgress)
-	[ "$STATUS" = "Success" ] && break
+	[[ "$STATUS" = "Success" ]] && break
 done
 aws ssm get-command-invocation --region "$REGION" --command-id "$CMD_ID" \
 	--instance-id "$INSTANCE_ID" --query StandardOutputContent --output text

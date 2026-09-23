@@ -39,23 +39,23 @@ except Exception:
 	echo "${val:-?}"
 }
 
-if [ -n "${SONAR_TOKEN:-}" ]; then
+if [[ -n "${SONAR_TOKEN:-}" ]]; then
 	KEYS="bugs vulnerabilities security_hotspots code_smells coverage duplicated_lines_density ncloc reliability_rating security_rating maintainability_rating sqale_index"
 	for k in $KEYS; do M[$k]="?"; done
 	# Rondas de reintento: el Compute Engine puede tardar minutos.
 	for round in $(seq 1 12); do
 		pending=0
 		for k in $KEYS; do
-			if [ "${M[$k]}" = "?" ]; then
+			if [[ "${M[$k]}" = "?" ]]; then
 				M[$k]=$(fetch_one "$k")
-				[ "${M[$k]}" = "?" ] && pending=$((pending + 1))
+				[[ "${M[$k]}" = "?" ]] && pending=$((pending + 1))
 			fi
 		done
 		echo "sonar-metrics ronda $round: pendientes=$pending" >&2
-		[ "$pending" -eq 0 ] && break
+		[[ "$pending" -eq 0 ]] && break
 		sleep 25
 	done
-	[ "${M[bugs]}" != "?" ] && SONAR_OK="sí"
+	[[ "${M[bugs]}" != "?" ]] && SONAR_OK="sí"
 fi
 
 get() { echo "${M[$1]:-?}"; }
@@ -69,7 +69,7 @@ rating_letra() { # 1.0-5.0 -> A-E
 	case "$1" in 1.0) echo "A";; 2.0) echo "B";; 3.0) echo "C";; 4.0) echo "D";; 5.0) echo "E";; *) echo "$1";; esac
 }
 
-if [ "$SONAR_OK" = "sí" ]; then
+if [[ "$SONAR_OK" = "sí" ]]; then
 	BUGS=$(get bugs)
 	VULNS=$(get vulnerabilities)
 	HOTSPOTS=$(get security_hotspots)
@@ -88,7 +88,7 @@ fi
 
 # Hallazgos abiertos de seguridad (vulnerabilidades + hotspots por revisar).
 ISSUES_MD="Sin datos (falta SONAR_TOKEN o la API no respondió)."
-if [ -n "${SONAR_TOKEN:-}" ]; then
+if [[ -n "${SONAR_TOKEN:-}" ]]; then
 	ISSUES_JSON=$(api "api/issues/search?projects=${PROJECT}&issueStatuses=OPEN,CONFIRMED&ps=100")
 	HOT_JSON=$(api "api/hotspots/search?projectKey=${PROJECT}&statuses=TO_REVIEW&ps=100")
 	ISSUES_MD=$(python3 - "$ISSUES_JSON" "$HOT_JSON" <<'EOF' || echo "Sin datos (respuesta inesperada)."
@@ -124,9 +124,9 @@ fi
 # Estado del Quality Gate.
 QGATE="?"
 QG_COND=""
-if [ -n "${SONAR_TOKEN:-}" ]; then
+if [[ -n "${SONAR_TOKEN:-}" ]]; then
 	QG_RESP=$(api "api/qualitygates/project_status?projectKey=${PROJECT}")
-	if [ -n "$QG_RESP" ]; then
+	if [[ -n "$QG_RESP" ]]; then
 		QGATE=$(echo "$QG_RESP" | python3 -c "import json,sys; print(json.load(sys.stdin).get('projectStatus',{}).get('status','?'))" 2>/dev/null || echo "?")
 		QG_COND=$(echo "$QG_RESP" | python3 -c "
 import json,sys
@@ -137,7 +137,7 @@ for c in d.get('conditions',[]):
 fi
 
 # Cobertura local (siempre disponible si existe coverage.out).
-if [ -f coverage.out ]; then
+if [[ -f coverage.out ]]; then
 	COV_LOCAL=$(go tool cover -func=coverage.out | tail -1 | awk '{print $3}')
 else
 	COV_LOCAL="sin medir (corre ./scripts/check_coverage.sh)"

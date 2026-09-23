@@ -43,7 +43,7 @@ for i in $(seq 1 36); do
 	STATUS=$(aws ssm get-command-invocation --region "$REGION" --command-id "$CMD_ID" \
 		--instance-id "$INSTANCE_ID" --query Status --output text 2>/dev/null || echo "InProgress")
 	echo "intento $i: $STATUS"
-	[ "$STATUS" = "Success" ] && break
+	[[ "$STATUS" = "Success" ]] && break
 	case "$STATUS" in
 	InProgress|Pending|Delayed) ;;
 	*)
@@ -52,7 +52,7 @@ for i in $(seq 1 36); do
 		;;
 	esac
 done
-[ "$STATUS" = "Success" ] || { echo "SSM no llegó a Success"; exit 1; }
+[[ "$STATUS" = "Success" ]] || { echo "SSM no llegó a Success"; exit 1; }
 
 echo "== health check externo =="
 for i in $(seq 1 12); do
