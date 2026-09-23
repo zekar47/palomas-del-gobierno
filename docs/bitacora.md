@@ -163,3 +163,21 @@ el proyecto ya existe en SonarCloud y `SONAR_TOKEN` ya está como secret.
 Pendiente del dueño (un click): en SonarCloud → proyecto → Administration →
 Analysis Method → desactivar **Automatic Analysis** (el análisis de CI es el
 autoritativo: lleva cobertura y gate). Tras eso, re-correr el workflow.
+
+## 2026-09-23 — SonarCloud: métricas vacías por dos causas
+
+Qué: con el análisis ya corriendo, el reporte salió con todo `?` pero el
+Quality Gate sí trajo datos (`new_security_rating ERROR`, `new_coverage 0.0`).
+Dos causas distintas:
+1. Mi script pedía todas las métricas en UNA llamada: si una clave no existe
+   en esa versión de SonarCloud, la API devuelve 400 y TODO queda en `?`.
+   Arreglo: pedirlas una por una con reintentos (una clave mala ya no tumba
+   lo demás) + log de progreso.
+2. El scanner avisó `Failed parsing coverage info ... expect 'mode:'`: pasaba
+   mi XML genérico donde el plugin Go espera **gocover nativo**. Mi recuerdo
+   estaba desactualizado: el Sonar moderno lee `coverage.out` directo.
+   Arreglo: `sonar.go.coverage.reportPaths=coverage.out`, artefacto
+   `coverage-out` en CI, y borrado el conversor `gocover2sonar.py` (muerto).
+   El `new_coverage 0.0` era (también) que nunca se aplicó cobertura.
+Además el reporte ahora lista hallazgos abiertos de seguridad (API
+issues/hotspots) para tener accionables sin entrar a la UI.

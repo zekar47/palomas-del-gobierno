@@ -3,6 +3,11 @@
 # Requiere: SONAR_TOKEN, SONAR_PROJECT_KEY (y opcional SONAR_ORG, SONAR_HOST).
 # Sin token genera el reporte con los datos locales disponibles y marca
 # SonarCloud como pendiente (útil antes del primer análisis en CI).
+#
+# Notas de robustez (incidentes reales):
+# - El Compute Engine tarda en procesar el scan: se reintenta hasta ~5 min.
+# - Las métricas se piden UNA POR UNA: si una clave no existe en esta versión
+#   de SonarCloud, solo esa queda en "?" en vez de tumbar toda la consulta.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -11,46 +16,49 @@ mkdir -p docs/metrics
 
 SONAR_HOST="${SONAR_HOST:-https://sonarcloud.io}"
 PROJECT="${SONAR_PROJECT_KEY:-zekar47_palomas-del-gobierno}"
-METRICS="bugs,vulnerabilities,security_hotspots,code_smells,sqale_rating,sqale_debt_minutes,coverage,duplicated_lines_density,ncloc,reliability_rating,security_rating,maintainability_rating"
 
 FECHA=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 SONAR_OK="no"
-RATINGS_JSON=""
+declare -A M
+
+api() { # $1 = path con query
+	curl -fsS -u "${SONAR_TOKEN}:" "${SONAR_HOST}/$1" 2>/dev/null || true
+}
+
+fetch_one() { # $1 = metric key -> imprime valor o "?"
+	local resp val
+	resp=$(api "api/measures/component?component=${PROJECT}&metricKeys=$1")
+	val=$(echo "$resp" | python3 -c "
+import json,sys
+try:
+    d=json.load(sys.stdin)
+    ms=d.get('component',{}).get('measures',[])
+    print(ms[0].get('value','?') if ms else '?')
+except Exception:
+    print('?')")
+	echo "${val:-?}"
+}
 
 if [ -n "${SONAR_TOKEN:-}" ]; then
-	# El scan sube el reporte y el Compute Engine de SonarCloud tarda en
-	# procesarlo (~30s-2min): reintentar hasta ver medidas (máx ~5 min).
-	for i in $(seq 1 12); do
-		RESP=$(curl -fsS -u "${SONAR_TOKEN}:" \
-			"${SONAR_HOST}/api/measures/component?component=${PROJECT}&metricKeys=${METRICS}" 2>/dev/null || true)
-		if [ -n "$RESP" ] && echo "$RESP" | grep -q '"measures"'; then
-			SONAR_OK="sí"
-			RATINGS_JSON="$RESP"
-			break
-		fi
+	KEYS="bugs vulnerabilities security_hotspots code_smells coverage duplicated_lines_density ncloc reliability_rating security_rating maintainability_rating sqale_index"
+	for k in $KEYS; do M[$k]="?"; done
+	# Rondas de reintento: el Compute Engine puede tardar minutos.
+	for round in $(seq 1 12); do
+		pending=0
+		for k in $KEYS; do
+			if [ "${M[$k]}" = "?" ]; then
+				M[$k]=$(fetch_one "$k")
+				[ "${M[$k]}" = "?" ] && pending=$((pending + 1))
+			fi
+		done
+		echo "sonar-metrics ronda $round: pendientes=$pending" >&2
+		[ "$pending" -eq 0 ] && break
 		sleep 25
 	done
+	[ "${M[bugs]}" != "?" ] && SONAR_OK="sí"
 fi
 
-# Estado del Quality Gate (independiente de las medidas).
-QGATE="?"
-QG_COND=""
-if [ -n "${SONAR_TOKEN:-}" ]; then
-	QG_RESP=$(curl -fsS -u "${SONAR_TOKEN}:" \
-		"${SONAR_HOST}/api/qualitygates/project_status?projectKey=${PROJECT}" 2>/dev/null || true)
-	if [ -n "$QG_RESP" ]; then
-		QGATE=$(echo "$QG_RESP" | python3 -c "import json,sys; print(json.load(sys.stdin).get('projectStatus',{}).get('status','?'))" 2>/dev/null || echo "?")
-		QG_COND=$(echo "$QG_RESP" | python3 -c "
-import json,sys
-d=json.load(sys.stdin).get('projectStatus',{})
-for c in d.get('conditions',[]):
-    print('- {}: {} ({} {} {})'.format(c.get('metricKey'),c.get('status'),c.get('actualValue','?'),c.get('comparator','?'),c.get('errorThreshold','?')))" 2>/dev/null || true)
-	fi
-fi
-
-get_metric() { # $1 = json, $2 = key
-	echo "$1" | python3 -c "import json,sys; d=json.load(sys.stdin); ms={m['metric']:m.get('value','?') for m in d.get('component',{}).get('measures',[])}; print(ms.get('$2','?'))" 2>/dev/null || echo "?"
-}
+get() { echo "${M[$1]:-?}"; }
 
 debt_fmt() { # minutos SQALE -> "Xd Yh Zm"
 	m="$1"
@@ -62,20 +70,70 @@ rating_letra() { # 1.0-5.0 -> A-E
 }
 
 if [ "$SONAR_OK" = "sí" ]; then
-	BUGS=$(get_metric "$RATINGS_JSON" bugs)
-	VULNS=$(get_metric "$RATINGS_JSON" vulnerabilities)
-	HOTSPOTS=$(get_metric "$RATINGS_JSON" security_hotspots)
-	SMELLS=$(get_metric "$RATINGS_JSON" code_smells)
-	DEBT=$(debt_fmt "$(get_metric "$RATINGS_JSON" sqale_debt_minutes)")
-	COV=$(get_metric "$RATINGS_JSON" coverage)
-	DUPL=$(get_metric "$RATINGS_JSON" duplicated_lines_density)
-	NCLOC=$(get_metric "$RATINGS_JSON" ncloc)
-	REL=$(rating_letra "$(get_metric "$RATINGS_JSON" reliability_rating)")
-	SEC=$(rating_letra "$(get_metric "$RATINGS_JSON" security_rating)")
-	MAIN=$(rating_letra "$(get_metric "$RATINGS_JSON" maintainability_rating)")
+	BUGS=$(get bugs)
+	VULNS=$(get vulnerabilities)
+	HOTSPOTS=$(get security_hotspots)
+	SMELLS=$(get code_smells)
+	DEBT=$(debt_fmt "$(get sqale_index)")
+	COV=$(get coverage)
+	DUPL=$(get duplicated_lines_density)
+	NCLOC=$(get ncloc)
+	REL=$(rating_letra "$(get reliability_rating)")
+	SEC=$(rating_letra "$(get security_rating)")
+	MAIN=$(rating_letra "$(get maintainability_rating)")
 else
 	BUGS="?" ; VULNS="?" ; HOTSPOTS="?" ; SMELLS="?" ; DEBT="?"
 	COV="?" ; DUPL="?" ; NCLOC="?" ; REL="?" ; SEC="?" ; MAIN="?"
+fi
+
+# Hallazgos abiertos de seguridad (vulnerabilidades + hotspots por revisar).
+ISSUES_MD="Sin datos (falta SONAR_TOKEN o la API no respondió)."
+if [ -n "${SONAR_TOKEN:-}" ]; then
+	ISSUES_JSON=$(api "api/issues/search?projects=${PROJECT}&issueStatuses=OPEN,CONFIRMED&ps=100")
+	HOT_JSON=$(api "api/hotspots/search?projectKey=${PROJECT}&statuses=TO_REVIEW&ps=100")
+	ISSUES_MD=$(python3 - "$ISSUES_JSON" "$HOT_JSON" <<'EOF' || echo "Sin datos (respuesta inesperada)."
+import json,sys
+out=[]
+try:
+    d=json.loads(sys.argv[1])
+    items=d.get('issues',[])
+except Exception:
+    items=[]
+for it in items[:20]:
+    sev=(it.get('impacts') or [{}])[0].get('severity','?')
+    out.append("| {} | {} | {}:{} | {} |".format(
+        (it.get('type') or '?'), sev,
+        (it.get('component') or '').split(':')[-1], it.get('line') or '?',
+        (it.get('message') or '').replace('|','/')[:120]))
+try:
+    h=json.loads(sys.argv[2])
+    hots=h.get('hotspots',[])
+except Exception:
+    hots=[]
+for ht in hots[:20]:
+    out.append("| HOTSPOT | {} | {}:{} | {} |".format(
+        ht.get('vulnerabilityProbability','?'),
+        (ht.get('component') or {}).get('key','').split(':')[-1] if isinstance(ht.get('component'),dict) else ht.get('component',''),
+        ht.get('line') or '?',
+        (ht.get('message') or ht.get('ruleKey') or '').replace('|','/')[:120]))
+print("\n".join(out) if out else "Sin hallazgos abiertos.")
+EOF
+)
+fi
+
+# Estado del Quality Gate.
+QGATE="?"
+QG_COND=""
+if [ -n "${SONAR_TOKEN:-}" ]; then
+	QG_RESP=$(api "api/qualitygates/project_status?projectKey=${PROJECT}")
+	if [ -n "$QG_RESP" ]; then
+		QGATE=$(echo "$QG_RESP" | python3 -c "import json,sys; print(json.load(sys.stdin).get('projectStatus',{}).get('status','?'))" 2>/dev/null || echo "?")
+		QG_COND=$(echo "$QG_RESP" | python3 -c "
+import json,sys
+d=json.load(sys.stdin).get('projectStatus',{})
+for c in d.get('conditions',[]):
+    print('- {}: {} ({} {} {})'.format(c.get('metricKey'),c.get('status'),c.get('actualValue','?'),c.get('comparator','?'),c.get('errorThreshold','?')))" 2>/dev/null || true)
+	fi
 fi
 
 # Cobertura local (siempre disponible si existe coverage.out).
@@ -107,6 +165,12 @@ cat > "$OUT" <<EOF
 | Rating fiabilidad | ${REL} |
 | Rating seguridad | ${SEC} |
 | Rating mantenibilidad | ${MAIN} |
+
+## Hallazgos abiertos de seguridad
+
+| Tipo | Severidad | Ubicación | Mensaje |
+|---|---|---|---|
+${ISSUES_MD}
 
 ## SAST local (referencia)
 

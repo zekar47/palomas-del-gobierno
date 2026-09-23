@@ -52,14 +52,11 @@ jobs:
           go install golang.org/x/vuln/cmd/govulncheck@latest
           $(go env GOPATH)/bin/govulncheck ./...
 
-      - name: Cobertura para SonarCloud
-        run: python3 scripts/gocover2sonar.py coverage.out coverage-sonar.xml
-
-      - name: Subir coverage-sonar.xml
+      - name: Subir coverage.out (formato gocover, lo lee SonarCloud)
         uses: actions/upload-artifact@v4
         with:
-          name: coverage-sonar
-          path: coverage-sonar.xml
+          name: coverage-out
+          path: coverage.out
 
   sonar:
     needs: test
@@ -82,11 +79,11 @@ jobs:
           fetch-depth: 0
         if: steps.sonar.outputs.present == 'true'
 
-      - name: Descargar coverage-sonar.xml
+      - name: Descargar coverage.out
         if: steps.sonar.outputs.present == 'true'
         uses: actions/download-artifact@v4
         with:
-          name: coverage-sonar
+          name: coverage-out
 
       - name: Análisis SonarCloud
         if: steps.sonar.outputs.present == 'true'
