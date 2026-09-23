@@ -37,6 +37,12 @@ func TestAbsURL(t *testing.T) {
 	if got := absURL(testReq("ejemplo.test", true), "/x"); got != "https://ejemplo.test/x" {
 		t.Fatalf("absURL https = %q", got)
 	}
+	// Tras el terminador TLS se respeta X-Forwarded-Proto.
+	proxied := testReq("tienda.ejemplo", false)
+	proxied.Header.Set("X-Forwarded-Proto", "https")
+	if got := absURL(proxied, "/news/feed.xml"); got != "https://tienda.ejemplo/news/feed.xml" {
+		t.Fatalf("absURL proxy = %q", got)
+	}
 }
 
 func TestTagURI(t *testing.T) {

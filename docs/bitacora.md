@@ -41,3 +41,18 @@ propio, coste $0, sin ALB); (b) documentar y scriptear la obtención de la
 contraseña admin; (c) corregir los 3 hallazgos Sonar en `auth.go` con fixes
 reales + commits separados; (d) endurecer SG (8080 solo-vía-Caddy) tras
 verificar HTTPS; (e) registrar todo aquí.
+
+## 2026-09-23 — Fix Sonar líneas 43/60: cookies sin Secure (S2092)
+
+Qué: las cookies de sesión/logout no llevaban `Secure` (ni `SameSite` la de
+logout). Sonar las marcó como no confiables.
+Por qué fix real y no supresión: ahora habrá HTTPS en producción, así que el
+atributo debe existir de verdad.
+Cambio: nuevo flag `--cookie-secure` (var `cookieSecure`, default `false` para
+no romper `http://localhost` en desarrollo); `createSession` y
+`destroySession` lo usan; la cookie de logout además ganó `SameSite=Lax`;
+`MaxAge` a const `sessionMaxAge`. De paso `absURL` respeta
+`X-Forwarded-Proto` (lo necesitarán los feeds tras el terminador TLS; el SG
+impedirá falsificar esa cabecera desde fuera).
+Verificación: `TestCookieSecureFlag` (Secure on/off + logout), `TestAbsURL`
+con cabecera de proxy, `go vet`, `gosec` 0 issues.

@@ -17,7 +17,10 @@ func main() {
 	dbPath := flag.String("db", "palomas.db", "ruta a la base de datos SQLite")
 	uploadDir := flag.String("uploads", "uploads", "directorio de archivos subidos (imágenes/videos)")
 	adminPass := flag.String("admin-pass", os.Getenv("PALOMAS_ADMIN_PASSWORD"), "contraseña del admin inicial (o env PALOMAS_ADMIN_PASSWORD)")
+	cookieSecureFlag := flag.Bool("cookie-secure", false, "activa Secure en la cookie de sesión (úsalo cuando sirvas por HTTPS)")
 	flag.Parse()
+
+	cookieSecure = *cookieSecureFlag
 
 	if err := os.MkdirAll(*uploadDir, 0o750); err != nil {
 		log.Fatalf("no pude crear el directorio de uploads: %v", err)

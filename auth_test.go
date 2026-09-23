@@ -89,6 +89,37 @@ func TestSesiones(t *testing.T) {
 	destroySession(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/", nil))
 }
 
+func TestCookieSecureFlag(t *testing.T) {
+	env := setupTestDB(t)
+	defer func() { cookieSecure = false }()
+
+	cookieSecure = true
+	rec := httptest.NewRecorder()
+	createSession(rec, env.user.ID)
+	c := rec.Result().Cookies()[0]
+	if !c.Secure || !c.HttpOnly || c.SameSite != http.SameSiteLaxMode || c.MaxAge != sessionMaxAge {
+		t.Fatalf("cookie segura: %+v", c)
+	}
+
+	cookieSecure = false
+	rec = httptest.NewRecorder()
+	createSession(rec, env.user.ID)
+	if rec.Result().Cookies()[0].Secure {
+		t.Fatal("con flag apagado la cookie no debe llevar Secure")
+	}
+
+	// La cookie de logout también respeta el flag y lleva SameSite.
+	cookieSecure = true
+	req := httptest.NewRequest(http.MethodPost, "/logout", nil)
+	req.AddCookie(c)
+	rec = httptest.NewRecorder()
+	destroySession(rec, req)
+	lc := rec.Result().Cookies()[0]
+	if !lc.Secure || lc.SameSite != http.SameSiteLaxMode || lc.MaxAge != -1 {
+		t.Fatalf("cookie logout: %+v", lc)
+	}
+}
+
 func TestRequireLogin(t *testing.T) {
 	env := setupTestDB(t)
 	next := func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusTeapot) }

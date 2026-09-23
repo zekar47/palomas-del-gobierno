@@ -14,6 +14,15 @@ import (
 
 const sessionCookie = "palomas_sesion"
 
+// sessionMaxAge es la duración de la sesión (7 días, en segundos).
+const sessionMaxAge = 7 * 24 * 3600
+
+// cookieSecure activa el atributo Secure en la cookie de sesión.
+// Debe ser true cuando la app se sirve por HTTPS (p. ej. tras Caddy/TLS) y
+// false en desarrollo local por HTTP plano (con Secure el navegador no la
+// enviaría por http://localhost). Se fija con el flag --cookie-secure.
+var cookieSecure = false
+
 type Session struct {
 	UserID int64
 	CSRF   string
@@ -37,16 +46,17 @@ func createSession(w http.ResponseWriter, userID int64) {
 	sessionsMu.Lock()
 	sessions[token] = &Session{UserID: userID, CSRF: randHex(16)}
 	sessionsMu.Unlock()
-	// #nosec G124 -- sin Secure a propósito: la app sirve HTTP plano (sin TLS)
-	// por diseño; Secure impediría que el navegador envíe la cookie.
-	// HttpOnly + SameSite=Lax mitigan XSS/CSRF. Activar Secure al poner TLS.
+	// #nosec G124 -- Secure es condicional a propósito: se activa con
+	// --cookie-secure en producción (HTTPS). En desarrollo local por HTTP
+	// plano debe ir apagado o el navegador no enviaría la cookie.
 	http.SetCookie(w, &http.Cookie{
 		Name:     sessionCookie,
 		Value:    token,
 		Path:     "/",
 		HttpOnly: true,
+		Secure:   cookieSecure,
 		SameSite: http.SameSiteLaxMode,
-		MaxAge:   7 * 24 * 3600,
+		MaxAge:   sessionMaxAge,
 	})
 }
 
@@ -56,9 +66,11 @@ func destroySession(w http.ResponseWriter, r *http.Request) {
 		delete(sessions, c.Value)
 		sessionsMu.Unlock()
 	}
-	// #nosec G124 -- igual que createSession: HTTP plano por diseño, sin Secure.
+	// #nosec G124 -- igual que createSession: Secure lo gobierna
+	// --cookie-secure (ver arriba).
 	http.SetCookie(w, &http.Cookie{
-		Name: sessionCookie, Value: "", Path: "/", HttpOnly: true, MaxAge: -1,
+		Name: sessionCookie, Value: "", Path: "/", HttpOnly: true,
+		Secure: cookieSecure, SameSite: http.SameSiteLaxMode, MaxAge: -1,
 	})
 }
 

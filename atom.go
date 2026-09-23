@@ -59,7 +59,11 @@ func rfc3339(sqliteTime string) string {
 
 func absURL(r *http.Request, path string) string {
 	scheme := "http"
-	if r.TLS != nil {
+	// Tras un terminador TLS (Caddy) la app ve HTTP plano: se respeta
+	// X-Forwarded-Proto para generar URLs absolutas correctas (feeds).
+	// El SG solo permite llegar a la app vía el proxy, así que la cabecera
+	// no es falsificable desde fuera.
+	if r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https" {
 		scheme = "https"
 	}
 	return scheme + "://" + r.Host + path
