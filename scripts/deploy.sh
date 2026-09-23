@@ -15,8 +15,11 @@ INSTANCE_ID=$(aws cloudformation describe-stacks --region "$REGION" --stack-name
 	--query "Stacks[0].Outputs[?OutputKey=='InstanceId'].OutputValue" --output text)
 BUCKET=$(aws cloudformation describe-stacks --region "$REGION" --stack-name "$STACK" \
 	--query "Stacks[0].Outputs[?OutputKey=='BucketName'].OutputValue" --output text)
-APP_URL=http://$(aws cloudformation describe-stacks --region "$REGION" --stack-name "$STACK" \
-	--query "Stacks[0].Outputs[?OutputKey=='ElasticIP'].OutputValue" --output text):8080
+EIP=$(aws cloudformation describe-stacks --region "$REGION" --stack-name "$STACK" \
+	--query "Stacks[0].Outputs[?OutputKey=='ElasticIP'].OutputValue" --output text)
+# Sin dominio propio: <ip-con-guiones>.sslip.io resuelve a la EIP (ver instance_deploy.sh).
+SITE="$(echo "$EIP" | tr '.' '-')".sslip.io
+APP_URL="https://$SITE"
 echo "instancia: $INSTANCE_ID | bucket: $BUCKET | url: $APP_URL"
 
 echo "== compilar linux/amd64 =="
