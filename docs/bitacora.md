@@ -293,33 +293,6 @@ rutas `/reply/{id}/edit|delete` (autor+admin, validación ≤20000), plantilla
 `edit_reply.html` + botones en `thread.html`, tests (`TestReplyMutations`,
 `TestReplyEditDelete`) y fila en README. `gosec` 0, cobertura por confirmar
 en CI.
-`https://44-218-216-230.sslip.io`: registro, hilo con YouTube (iframe
-`youtube-nocookie` presente), edición de hilo, panel `/admin/users`,
-promoción a member, noticia de member con embed, comentar, editar y borrar
-comentario, borrar hilo propio, borrar noticia propia, auto-eliminar cuenta
-(sesión muerta, usuario fuera del panel). La BD productiva migró sola a v2 en
-el arranque (home 200, usuarios reales intactos) y la limpieza dejó cero
-rastros (404s + panel limpio + contenido ajeno intacto).
-FALLO MÍO (importante): al promover por posición (`head -2 | tail -1`) en vez
-de por nombre, ascendí a `member` a `zekar`, un usuario REAL del sitio, en vez
-de a mi cuenta de prueba. Lo detecté al listar usuarios y lo revertí de
-inmediato a `user` (verificado en el panel). Lección: en producción, siempre
-seleccionar por identificador exacto (username/id), nunca por posición en
-HTML scrapeado. Disculpa debida al usuario afectado: ningún contenido suyo se
-tocó y el rol duró minutos.
-
-Qué: enlaces de YouTube en noticias/foro/comentarios se muestran como
-reproductor embebido en vez de link pelado.
-Cómo: `renderMarkdown` pasa el HTML por `embedYouTubeLinks`, que localiza
-`<a href>` y, solo si el host está en allowlist (youtube.com y subdominios,
-youtu.be) y el ID valida `^[A-Za-z0-9_-]{11}$`, sustituye por iframe a
-`youtube-nocookie.com` + enlace fallback (para w3m/noscript). URLs con
-parámetros extra funcionan (se desescapa `&amp;` antes de parsear); lo demás
-(vimeo, IDs malos, código inline, hosts parecidos) queda intacto. CSS
-`.video-embed` 16:9 fluido + tabla admin.
-Fallo: el caso "host en mayúsculas" falló — Goldmark no auto-enlaza hosts con
-mayúsculas (queda texto plano). No es bug nuestro: se fijó como caso inválido
-documentado.
 
 ## 2026-09-23 — Cierre: Quality Gate en OK y métricas commiteadas
 
