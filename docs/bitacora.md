@@ -80,3 +80,34 @@ los outputs del stack, lee el archivo vía SSM y lo imprime). Verificado:
 devuelve `PALOMAS_ADMIN_PASSWORD=…` y un login `POST /login` con esa clave
 responde 303 (sesión creada). Nota: al recrear el stack la contraseña cambia
 (user-data corre de nuevo).
+
+## 2026-09-23 — TLS (1): SG 80/443 y dos updates fallidos por charset
+
+Qué: para HTTPS con Caddy se abrieron los puertos 80 (redirect + desafío
+ACME) y 443 en el SG. El `cloudformation deploy` falló DOS veces con
+`UPDATE_ROLLBACK_COMPLETE` antes de pasar.
+Fallo 1: la descripción de una regla llevaba tilde ("desafío"/"restringirá").
+Fallo 2: la descripción `"HTTPS Caddy (Let's Encrypt)"` lleva apóstrofe.
+EC2 solo acepta `[a-zA-Z0-9. _-:/()#,@[]+=&;{}!$*]` en descripciones de reglas
+(ni tildes ni apóstrofes). Arreglo: todo ASCII sin apóstrofes; el tercer
+deploy pasó y el SG quedó en 80/8080/443.
+Lección: validar descripciones de SG contra ese charset antes de desplegar.
+
+## 2026-09-23 — TLS (2): checksums de Caddy son SHA512, no SHA256
+
+Qué: el primer deploy con Caddy falló en la instancia con
+`sha256sum: no properly formatted SHA256 checksum lines found`.
+Diagnóstico: el `grep` sí matcheaba (repro en SSM: PIPESTATUS=0 1); el archivo
+`caddy_*_checksums.txt` trae hashes de 128 hex = SHA512 (42 líneas verificadas
+localmente). Supuse SHA256 sin mirar.
+Arreglo: `sha512sum -c -` en `scripts/instance_deploy.sh`.
+Lección: verificar el largo del hash antes de elegir la herramienta.
+
+## 2026-09-23 — SonarCloud: conflicto Automatic Analysis vs CI
+
+Qué: el job `sonar` del CI falló con `You are running CI analysis while
+Automatic Analysis is enabled` (el job `test` pasó en verde). Buena señal:
+el proyecto ya existe en SonarCloud y `SONAR_TOKEN` ya está como secret.
+Pendiente del dueño (un click): en SonarCloud → proyecto → Administration →
+Analysis Method → desactivar **Automatic Analysis** (el análisis de CI es el
+autoritativo: lleva cobertura y gate). Tras eso, re-correr el workflow.

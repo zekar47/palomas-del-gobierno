@@ -50,7 +50,7 @@ if ! command -v caddy >/dev/null 2>&1; then
 	cd /tmp
 	curl -fsSL -o caddy.tgz "https://github.com/caddyserver/caddy/releases/download/${CADDY_TAG}/caddy_${CADDY_VER}_linux_amd64.tar.gz"
 	curl -fsSL -o caddy_checks.txt "https://github.com/caddyserver/caddy/releases/download/${CADDY_TAG}/caddy_${CADDY_VER}_checksums.txt"
-	grep "caddy_${CADDY_VER}_linux_amd64.tar.gz" caddy_checks.txt | sha256sum -c -
+	grep "caddy_${CADDY_VER}_linux_amd64.tar.gz" caddy_checks.txt | sha512sum -c -
 	tar xzf caddy.tgz caddy
 	install -m 0755 caddy /usr/local/bin/caddy
 	rm -f caddy.tgz caddy_checks.txt caddy
