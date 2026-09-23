@@ -293,6 +293,9 @@ rutas `/reply/{id}/edit|delete` (autor+admin, validación ≤20000), plantilla
 `edit_reply.html` + botones en `thread.html`, tests (`TestReplyMutations`,
 `TestReplyEditDelete`) y fila en README. `gosec` 0, cobertura por confirmar
 en CI.
+Verificación en vivo: con usuario normal en hilo existente — responder (303),
+botones `/reply/5/edit|delete` visibles en el HTML, editar (303 + texto
+visible), borrar (303), auto-eliminar cuenta, cero rastros. Limpio.
 
 ## 2026-09-23 — Cierre: Quality Gate en OK y métricas commiteadas
 
