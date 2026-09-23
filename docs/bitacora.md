@@ -69,3 +69,14 @@ explícito — de paso cayó un `#nosec G104` que ya no hace falta.
 Verificación: `TestLoginUser` (inexistente/clave mala siguen dando
 `errBadCreds`), `TestSQLiInocua`, `gosec` 0 issues con 7 supresiones (una
 menos que antes).
+
+## 2026-09-23 — Contraseña del administrador: dónde está y cómo leerla
+
+Qué: la contraseña real del admin se genera una sola vez en el primer arranque
+de la instancia (user-data: 16 bytes hex de `/dev/urandom` → `/etc/palomas.env`,
+`chmod 600`) y no existe en ningún otro lado.
+Cómo leerla: nuevo `scripts/admin_password.sh` (resuelve el InstanceId desde
+los outputs del stack, lee el archivo vía SSM y lo imprime). Verificado:
+devuelve `PALOMAS_ADMIN_PASSWORD=…` y un login `POST /login` con esa clave
+responde 303 (sesión creada). Nota: al recrear el stack la contraseña cambia
+(user-data corre de nuevo).
