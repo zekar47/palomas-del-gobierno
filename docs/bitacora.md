@@ -229,6 +229,21 @@ conexión dedicada y `foreign_key_check` al final. Idempotente.
 Verificación: `db_roles_test.go` (migración desde esquema viejo simulado,
 roles, cascada completa, mutaciones) en verde.
 
+## 2026-09-23 — Cuentas e hilos editables (2/3): embeds de YouTube
+
+Qué: enlaces de YouTube en noticias/foro/comentarios se muestran como
+reproductor embebido en vez de link pelado.
+Cómo: `renderMarkdown` pasa el HTML por `embedYouTubeLinks`, que localiza
+`<a href>` y, solo si el host está en allowlist (youtube.com y subdominios,
+youtu.be) y el ID valida `^[A-Za-z0-9_-]{11}$`, sustituye por iframe a
+`youtube-nocookie.com` + enlace fallback (para w3m/noscript). URLs con
+parámetros extra funcionan (se desescapa `&amp;` antes de parsear); lo demás
+(vimeo, IDs malos, código inline, hosts parecidos) queda intacto. CSS
+`.video-embed` 16:9 fluido + tabla admin.
+Fallo: el caso "host en mayúsculas" falló — Goldmark no auto-enlaza hosts con
+mayúsculas (queda texto plano). No es bug nuestro: se fijó como caso inválido
+documentado.
+
 ## 2026-09-23 — Cierre: Quality Gate en OK y métricas commiteadas
 
 Qué: tras la ronda 2 el reporte quedó: bugs 0, vulnerabilidades 5 (todas

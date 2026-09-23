@@ -74,6 +74,69 @@ func TestHtmlEscape(t *testing.T) {
 	}
 }
 
+func TestYouTubeEmbed(t *testing.T) {
+	validos := map[string]string{
+		"watch":        "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+		"watch params": "https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=30s&list=PL1234567890a",
+		"youtu.be":     "https://youtu.be/dQw4w9WgXcQ",
+		"youtu.be t":   "https://youtu.be/dQw4w9WgXcQ?t=42",
+		"shorts":       "https://www.youtube.com/shorts/dQw4w9WgXcQ",
+		"embed":        "https://www.youtube.com/embed/dQw4w9WgXcQ",
+		"live":         "https://www.youtube.com/live/dQw4w9WgXcQ",
+		"music":        "https://music.youtube.com/watch?v=dQw4w9WgXcQ",
+		"link manual":  "[mira esto](https://youtu.be/dQw4w9WgXcQ)",
+	}
+	for name, in := range validos {
+		out := string(renderMarkdown(in))
+		if !strings.Contains(out, "youtube-nocookie.com/embed/dQw4w9WgXcQ") {
+			t.Fatalf("%s: sin iframe: %s", name, out)
+		}
+		if !strings.Contains(out, "ver en YouTube") {
+			t.Fatalf("%s: sin fallback: %s", name, out)
+		}
+	}
+	invalidos := map[string]string{
+		"id corto":  "https://www.youtube.com/watch?v=corto123",
+		"id sucio":  "https://www.youtube.com/watch?v=dQw4w9WgXc!",
+		"sin id":    "https://www.youtube.com/watch?list=PL123",
+		"vimeo":     "https://vimeo.com/123456789",
+		"falso":     "https://www.youtube.com.evil.test/watch?v=dQw4w9WgXcQ",
+		"evevil":    "https://evilyoutube.com/watch?v=dQw4w9WgXcQ",
+		"código":    "`https://www.youtube.com/watch?v=dQw4w9WgXcQ`",
+		"ruta rara": "https://youtu.be/",
+		"doble seg": "https://youtu.be/dQw4w9WgXcQ/extra",
+		// Goldmark no auto-enlaza hosts en mayúsculas: queda texto plano.
+		"mayusculas": "https://M.YOUTUBE.COM/watch?v=dQw4w9WgXcQ",
+	}
+	for name, in := range invalidos {
+		out := string(renderMarkdown(in))
+		if strings.Contains(out, "<iframe") {
+			t.Fatalf("%s: iframe indebido: %s", name, out)
+		}
+	}
+	// Múltiples en un doc + texto alrededor intacto.
+	out := string(renderMarkdown("hola https://youtu.be/dQw4w9WgXcQ y https://vimeo.com/1 adiós"))
+	if strings.Count(out, "<iframe") != 1 || !strings.Contains(out, "vimeo.com/1") {
+		t.Fatalf("múltiple: %s", out)
+	}
+	// Intento de inyección vía URL: no hay iframe y nada crudo.
+	out = string(renderMarkdown("https://www.youtube.com/watch?v=dQw4w9WgXcQ%22%3E%3Cscript%3E"))
+	if strings.Contains(out, "<script>") || strings.Contains(out, "<iframe") {
+		t.Fatalf("inyección: %s", out)
+	}
+}
+
+func TestYoutubeIDUnit(t *testing.T) {
+	if youtubeID("https://www.youtube.com/watch?v=dQw4w9WgXcQ") != "dQw4w9WgXcQ" {
+		t.Fatal("watch")
+	}
+	for _, bad := range []string{"", "basura", "ftp://youtu.be/dQw4w9WgXcQ", "https://youtu.be/dQw4w9WgXcQ\ninyección", "javascript:alert(1)"} {
+		if youtubeID(bad) != "" {
+			t.Fatalf("youtubeID(%q) debió ser vacío", bad)
+		}
+	}
+}
+
 func TestExcerpt(t *testing.T) {
 	fn := funcs["excerpt"].(func(int, template.HTML) string)
 	if got := fn(280, template.HTML("<p>Hola <b>mundo</b></p>")); got != "Hola mundo" {

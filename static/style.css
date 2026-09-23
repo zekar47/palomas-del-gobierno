@@ -570,3 +570,14 @@ main {
   .ticker-track { animation: none; padding-left: 0; }
   .scanlines { display: none; }
 }
+
+/* videos de YouTube embebidos: 16:9 fluido, sin CSS siguen el fallback */
+.video-embed { position: relative; padding-bottom: 56.25%; height: 0; margin: 1rem 0; }
+.video-embed iframe { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: 0; }
+.video-embed p { position: absolute; bottom: -1.6rem; left: 0; margin: 0; }
+
+/* tabla de administración de usuarios */
+table.admin-table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
+table.admin-table th, table.admin-table td { border: 1px solid var(--ash); padding: .4rem .6rem; text-align: left; }
+table.admin-table th { background: #160606; }
+.inline-form { display: inline; }
