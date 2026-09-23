@@ -18,11 +18,33 @@ SONAR_OK="no"
 RATINGS_JSON=""
 
 if [ -n "${SONAR_TOKEN:-}" ]; then
-	RESP=$(curl -fsS -u "${SONAR_TOKEN}:" \
-		"${SONAR_HOST}/api/measures/component?component=${PROJECT}&metricKeys=${METRICS}" 2>/dev/null || true)
-	if [ -n "$RESP" ] && echo "$RESP" | grep -q '"measures"'; then
-		SONAR_OK="sí"
-		RATINGS_JSON="$RESP"
+	# El scan sube el reporte y el Compute Engine de SonarCloud tarda en
+	# procesarlo (~30s-2min): reintentar hasta ver medidas (máx ~5 min).
+	for i in $(seq 1 12); do
+		RESP=$(curl -fsS -u "${SONAR_TOKEN}:" \
+			"${SONAR_HOST}/api/measures/component?component=${PROJECT}&metricKeys=${METRICS}" 2>/dev/null || true)
+		if [ -n "$RESP" ] && echo "$RESP" | grep -q '"measures"'; then
+			SONAR_OK="sí"
+			RATINGS_JSON="$RESP"
+			break
+		fi
+		sleep 25
+	done
+fi
+
+# Estado del Quality Gate (independiente de las medidas).
+QGATE="?"
+QG_COND=""
+if [ -n "${SONAR_TOKEN:-}" ]; then
+	QG_RESP=$(curl -fsS -u "${SONAR_TOKEN}:" \
+		"${SONAR_HOST}/api/qualitygates/project_status?projectKey=${PROJECT}" 2>/dev/null || true)
+	if [ -n "$QG_RESP" ]; then
+		QGATE=$(echo "$QG_RESP" | python3 -c "import json,sys; print(json.load(sys.stdin).get('projectStatus',{}).get('status','?'))" 2>/dev/null || echo "?")
+		QG_COND=$(echo "$QG_RESP" | python3 -c "
+import json,sys
+d=json.load(sys.stdin).get('projectStatus',{})
+for c in d.get('conditions',[]):
+    print('- {}: {} ({} {} {})'.format(c.get('metricKey'),c.get('status'),c.get('actualValue','?'),c.get('comparator','?'),c.get('errorThreshold','?')))" 2>/dev/null || true)
 	fi
 fi
 
@@ -88,10 +110,10 @@ cat > "$OUT" <<EOF
 
 ## SAST local (referencia)
 
-- **gosec:** 0 issues (8 supresiones \`#nosec\` justificadas en código: cookies sin
-  \`Secure\` por HTTP plano, Goldmark sin unsafe, nombre de upload generado por
-  servidor, redirects a ruta fija \`/login\`, retardo anti-enumeración).
-- **govulncheck:** 0 vulnerabilidades alcanzables.
+- **gosec:** 0 issues (7 supresiones \`#nosec\` justificadas en código: \`Secure\`
+  condicional por flag, Goldmark sin unsafe, nombre de upload generado por el
+  servidor, redirects a ruta fija \`/login\`).
+- **govulncheck:** 0 vulnerabilidades alcanzables (Go 1.26.6).
 - **Tests de seguridad en Go:** XSS (payloads servidos escapados/omitidos) y
   SQLi (payloads inocuos, tablas intactas) en \`security_test.go\`.
 
@@ -99,6 +121,10 @@ cat > "$OUT" <<EOF
 
 Objetivo: **Sonar Way + cobertura ≥ 80%**. El workflow de CI falla bajo el umbral
 (\`scripts/check_coverage.sh\`) y publica este reporte como artefacto + job summary.
+
+### Estado del Quality Gate en SonarCloud: ${QGATE}
+
+${QG_COND}
 EOF
 
 echo "reporte escrito en $OUT (sonar: $SONAR_OK)"

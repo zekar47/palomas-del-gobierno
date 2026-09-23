@@ -145,6 +145,16 @@ between resources: [AppInstance, AppSecurityGroup, AppEIPAssociation]`.
 Arreglo: regla 8080 como recurso aparte `AWS::EC2::SecurityGroupIngress`
 (`AppSelfIngress8080`), que solo depende del SG.
 
+## 2026-09-23 — SonarCloud: primer análisis OK, pero métricas vacías
+
+Qué: tras desactivar Automatic Analysis, el CI pasó completo (`test` +
+`sonar` en verde). Pero el artefacto `metricas-calidad` traía todo `?`:
+el script consultó la API segundos después de subir el scan, cuando el
+Compute Engine aún no lo procesaba.
+Arreglo: `scripts/sonar_metrics.sh` ahora reintenta la API 12×25s hasta ver
+medidas, y además consulta `/api/qualitygates/project_status` para incluir el
+estado del Quality Gate y sus condiciones en el reporte.
+
 ## 2026-09-23 — SonarCloud: conflicto Automatic Analysis vs CI
 
 Qué: el job `sonar` del CI falló con `You are running CI analysis while
