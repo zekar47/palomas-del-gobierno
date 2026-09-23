@@ -44,7 +44,32 @@ aws cloudformation describe-stacks --region us-east-1 --stack-name palomas-entor
 ```
 
 Outputs: `InstanceId`, `ElasticIP`, `BucketName`, `SecurityGroupId`.
-La app queda en `http://<ElasticIP>:8080`.
+La app queda en `https://<EIP-con-puntos-a-guiones>.sslip.io` (ver TLS abajo).
+`http://<ElasticIP>:8080` ya no responde desde fuera (8080 solo-vía-Caddy).
+
+## TLS (Caddy + Let's Encrypt, sin dominio propio)
+
+Cada deploy (`scripts/instance_deploy.sh`, corre en la instancia vía SSM):
+
+1. Instala Caddy (binario oficial de GitHub, última release, checksum SHA512
+   verificado; se omite si ya está instalado) con `setcap` para puertos 80/443
+   como usuario `caddy`.
+2. Deriva el nombre público desde los metadatos de la instancia:
+   `SITE=<IP-publica-con-guiones>.sslip.io` (resuelve a la EIP).
+3. Escribe `/etc/caddy/Caddyfile` (`reverse_proxy 127.0.0.1:8080`, gzip) y la
+   unit `caddy.service`; Caddy obtiene y renueva solo el certificado Let's
+   Encrypt (desafío ACME por :80) y redirige todo HTTP a HTTPS (308).
+4. Verifica `https://$SITE/` con reintentos; si falla vuelca `journalctl`.
+
+Notas:
+
+- El binario `palomas` corre con `--cookie-secure` (la cookie lleva `Secure`)
+  y genera URLs de feeds con `https://` vía `X-Forwarded-Proto` (el SG impide
+  falsificarla desde fuera, pues a la app solo llega Caddy).
+- Certificados en `/var/lib/caddy` (renovación automática por Caddy).
+- Descripciones de reglas del SG: solo ASCII sin apóstrofes (EC2 las rechaza)
+  y la regla 8080-self va como recurso `AWS::EC2::SecurityGroupIngress`
+  aparte (inline crea dependencia circular).
 
 ## Borrar
 
