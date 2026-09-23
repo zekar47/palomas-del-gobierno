@@ -44,7 +44,7 @@ var funcs = template.FuncMap{
 var pageTemplates = map[string]*template.Template{}
 
 func loadTemplates() error {
-	pages := []string{"home", "news", "post", "admin_edit", "admin_users", "account", "forum", "thread", "edit_thread", "edit_comment", "new_thread", "login", "register", "notfound"}
+	pages := []string{"home", "news", "post", "admin_edit", "admin_users", "account", "forum", "thread", "edit_thread", "edit_comment", "edit_reply", "new_thread", "login", "register", "notfound"}
 	for _, p := range pages {
 		t, err := template.New("base").Funcs(funcs).ParseFiles("templates/base.html", "templates/"+p+".html")
 		if err != nil {
@@ -123,6 +123,9 @@ func routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /comment/{id}/edit", requireLogin(commentEditGet))
 	mux.HandleFunc("POST /comment/{id}/edit", requireLogin(requirePostCSRF(commentEditPost)))
 	mux.HandleFunc("POST /comment/{id}/delete", requireLogin(requirePostCSRF(commentDelete)))
+	mux.HandleFunc("GET /reply/{id}/edit", requireLogin(replyEditGet))
+	mux.HandleFunc("POST /reply/{id}/edit", requireLogin(requirePostCSRF(replyEditPost)))
+	mux.HandleFunc("POST /reply/{id}/delete", requireLogin(requirePostCSRF(replyDelete)))
 
 	// cuenta propia
 	mux.HandleFunc("GET /account", requireLogin(accountGet))
@@ -762,6 +765,64 @@ func commentDelete(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = deleteComment(c.ID)
 	http.Redirect(w, r, fmt.Sprintf("/news/%d", c.PostID), http.StatusSeeOther)
+}
+
+type replyEditData struct {
+	pageData
+	Reply *Reply
+}
+
+func replyEditGet(w http.ResponseWriter, r *http.Request) {
+	rp, err := getReply(parseID(r.PathValue("id")))
+	if err != nil {
+		notFoundHandler(w, r)
+		return
+	}
+	if !canEdit(currentUser(r), rp.UserID) {
+		http.Error(w, "403 — no puedes editar esta respuesta", http.StatusForbidden)
+		return
+	}
+	render(w, "edit_reply", replyEditData{pageData: loadPage(r, "EDITAR RESPUESTA"), Reply: rp})
+}
+
+func replyEditPost(w http.ResponseWriter, r *http.Request) {
+	rp, err := getReply(parseID(r.PathValue("id")))
+	if err != nil {
+		notFoundHandler(w, r)
+		return
+	}
+	if !canEdit(currentUser(r), rp.UserID) {
+		http.Error(w, "403 — no puedes editar esta respuesta", http.StatusForbidden)
+		return
+	}
+	body := strings.TrimSpace(r.PostFormValue("body"))
+	if body == "" {
+		http.Error(w, "respuesta vacía", http.StatusBadRequest)
+		return
+	}
+	if len([]rune(body)) > 20000 {
+		http.Error(w, "respuesta demasiado larga (máx 20000 caracteres)", http.StatusBadRequest)
+		return
+	}
+	if err := updateReply(rp.ID, body); err != nil {
+		http.Error(w, "error interno", http.StatusInternalServerError)
+		return
+	}
+	http.Redirect(w, r, fmt.Sprintf("/forum/%d", rp.ThreadID), http.StatusSeeOther)
+}
+
+func replyDelete(w http.ResponseWriter, r *http.Request) {
+	rp, err := getReply(parseID(r.PathValue("id")))
+	if err != nil {
+		notFoundHandler(w, r)
+		return
+	}
+	if !canEdit(currentUser(r), rp.UserID) {
+		http.Error(w, "403 — no puedes borrar esta respuesta", http.StatusForbidden)
+		return
+	}
+	_ = deleteReply(rp.ID)
+	http.Redirect(w, r, fmt.Sprintf("/forum/%d", rp.ThreadID), http.StatusSeeOther)
 }
 
 // ---------------------------------------------------------------------------

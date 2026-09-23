@@ -282,3 +282,28 @@ func TestThreadCommentMutations(t *testing.T) {
 		t.Fatal("canEdit mal")
 	}
 }
+
+func TestReplyMutations(t *testing.T) {
+	env := setupTestDB(t)
+
+	tid, _ := createThread(env.user.ID, "T", "c")
+	_ = addReply(tid, env.user.ID, "original")
+	rs, _ := listReplies(tid)
+	rp, err := getReply(rs[0].ID)
+	if err != nil || rp.Body != "original" || rp.ThreadID != tid || rp.Username != "usuario1" {
+		t.Fatalf("getReply: %+v, %v", rp, err)
+	}
+	if _, err := getReply(999999); err == nil {
+		t.Fatal("getReply inexistente debió fallar")
+	}
+	if err := updateReply(rp.ID, "editada"); err != nil {
+		t.Fatalf("updateReply: %v", err)
+	}
+	if err := deleteReply(rp.ID); err != nil {
+		t.Fatalf("deleteReply: %v", err)
+	}
+	rs, _ = listReplies(tid)
+	if len(rs) != 0 {
+		t.Fatal("respuesta sigue tras borrar")
+	}
+}

@@ -24,6 +24,16 @@
       <li class="comment">
         <p class="meta">@{{.Username}} · [{{.CreatedAt | timeFmt}}]</p>
         <div class="comment-body">{{.Body | markdown}}</div>
+        {{if canedit $.User .UserID}}
+        <p class="toolbar">
+          <a class="btn small" href="/reply/{{.ID}}/edit">EDITAR</a>
+          <form class="inline" method="post" action="/reply/{{.ID}}/delete"
+                onsubmit="return confirm('¿borrar esta respuesta?');">
+            <input type="hidden" name="csrf" value="{{$.CSRF}}">
+            <button class="btn small danger" type="submit">BORRAR</button>
+          </form>
+        </p>
+        {{end}}
       </li>
       {{end}}
     </ul>

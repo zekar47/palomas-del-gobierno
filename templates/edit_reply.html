@@ -1,0 +1,18 @@
+{{define "content"}}
+<header class="pagehead">
+  <h2>// EDITAR RESPUESTA</h2>
+  <p class="dim">corrige tu respuesta. markdown habilitado.</p>
+</header>
+
+<form class="card form" method="post" action="/reply/{{.Reply.ID}}/edit">
+  <input type="hidden" name="csrf" value="{{.CSRF}}">
+  <p>
+    <label for="body">respuesta (markdown):</label>
+    <textarea id="body" name="body" rows="6" required>{{.Reply.Body}}</textarea>
+  </p>
+  <p class="toolbar">
+    <button type="submit">GUARDAR</button>
+    <a class="btn small" href="/forum/{{.Reply.ThreadID}}">CANCELAR</a>
+  </p>
+</form>
+{{end}}

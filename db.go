@@ -90,7 +90,9 @@ func migrate() error {
 	err = conn.QueryRowContext(ctx, `SELECT v FROM meta WHERE k = 'schema_version'`).Scan(&vstr)
 	switch {
 	case err == nil:
-		fmt.Sscanf(vstr, "%d", &version)
+		if _, serr := fmt.Sscanf(vstr, "%d", &version); serr != nil {
+			version = 0
+		}
 	case err == sql.ErrNoRows:
 		version = 0
 	default:
@@ -373,20 +375,20 @@ func deleteUser(id int64) ([]string, error) {
 	}
 	defer tx.Rollback()
 
-	var paths []string
-	rows, err := tx.Query(`SELECT image_path, video_path FROM posts WHERE author_id = ?`, id)
+	var rows *sql.Rows
+	rows, err = tx.Query(`SELECT image_path, video_path FROM posts WHERE author_id = ?`, id)
 	if err != nil {
 		return nil, err
 	}
+	defer rows.Close()
+	var paths []string
 	for rows.Next() {
 		var img, vid string
 		if err := rows.Scan(&img, &vid); err != nil {
-			rows.Close()
 			return nil, err
 		}
 		paths = append(paths, img, vid)
 	}
-	rows.Close()
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
@@ -668,4 +670,27 @@ WHERE r.thread_id = ? ORDER BY r.created_at ASC`, threadID)
 		out = append(out, r)
 	}
 	return out, rows.Err()
+}
+
+func getReply(id int64) (*Reply, error) {
+	r := &Reply{}
+	err := db.QueryRow(`
+SELECT r.id, r.thread_id, r.user_id, COALESCE(u.username,''), r.body, r.created_at
+FROM replies r JOIN users u ON u.id = r.user_id
+WHERE r.id = ?`, id).
+		Scan(&r.ID, &r.ThreadID, &r.UserID, &r.Username, &r.Body, &r.CreatedAt)
+	if err != nil {
+		return nil, err
+	}
+	return r, nil
+}
+
+func updateReply(id int64, body string) error {
+	_, err := db.Exec(`UPDATE replies SET body = ? WHERE id = ?`, body, id)
+	return err
+}
+
+func deleteReply(id int64) error {
+	_, err := db.Exec(`DELETE FROM replies WHERE id = ?`, id)
+	return err
 }

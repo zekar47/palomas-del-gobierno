@@ -360,6 +360,9 @@ Definidas en `routes()` (`handlers.go:88-127`) con sintaxis Go 1.22 `METHOD patt
 | POST | `/forum/new` | `forumNewPost` | login+CSRF | Valida título/body no vacíos, body ≤20000 → `createThread` → `303 /forum/{id}`. |
 | GET | `/forum/{id}` | `forumThread` | pública | `getThread+listReplies` → `thread.html`. No existe → 404. |
 | POST | `/forum/{id}/reply` | `forumReply` | login+CSRF | Valida body → `addReply` (tx + bump) → `303`. |
+| GET | `/reply/{id}/edit` | `replyEditGet` | login (autor/admin) | Form editar respuesta. Ajeno → 403. |
+| POST | `/reply/{id}/edit` | `replyEditPost` | login+CSRF (autor/admin) | Valida body ≤20000 → `updateReply` → `303 /forum/{thread}`. |
+| POST | `/reply/{id}/delete` | `replyDelete` | login+CSRF (autor/admin) | `deleteReply` → `303 /forum/{thread}`. |
 | POST | `/preview` | `previewHandler` | login+CSRF | Devuelve HTML del Markdown `body`. Usado por `app.js`. |
 | GET | `/forum/{id}/edit` | `forumEditGet` | login (autor/admin) | Form editar hilo. Ajeno → 403. |
 | POST | `/forum/{id}/edit` | `forumEditPost` | login+CSRF (autor/admin) | Valida título/cuerpo → `updateThread` → `303 /forum/{id}`. |

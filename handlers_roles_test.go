@@ -272,6 +272,69 @@ func TestAccount(t *testing.T) {
 	}
 }
 
+func TestReplyEditDelete(t *testing.T) {
+	env := setupTestDB(t)
+	ucookie, ucsrf := loginAs(t, "usuario1", "password1")
+	acookie, acsrf := loginAs(t, "admin", "admin-test-pass")
+
+	tid, _ := createThread(env.user.ID, "T", "cuerpo")
+	_ = addReply(tid, env.user.ID, "original")
+	rs, _ := listReplies(tid)
+	rid := rs[0].ID
+	ruta := fmt.Sprintf("/reply/%d/edit", rid)
+	del := fmt.Sprintf("/reply/%d/delete", rid)
+
+	if rec := doReq(env.mux, http.MethodGet, ruta, nil, nil); rec.Code != http.StatusSeeOther {
+		t.Fatalf("anónimo = %d", rec.Code)
+	}
+	if rec := doReq(env.mux, http.MethodGet, ruta, nil, ucookie); rec.Code != http.StatusOK {
+		t.Fatalf("dueño get = %d", rec.Code)
+	}
+	rec := doReq(env.mux, http.MethodPost, ruta, authedForm(ucsrf, map[string]string{"body": "editada"}), ucookie)
+	if rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != fmt.Sprintf("/forum/%d", tid) {
+		t.Fatalf("dueño post = %d loc=%q", rec.Code, rec.Header().Get("Location"))
+	}
+	rp, _ := getReply(rid)
+	if rp.Body != "editada" {
+		t.Fatalf("no se guardó: %+v", rp)
+	}
+	for name, body := range map[string]string{"vacía": "  ", "larga": strings.Repeat("x", 20001)} {
+		if rec := doReq(env.mux, http.MethodPost, ruta, authedForm(ucsrf, map[string]string{"body": body}), ucookie); rec.Code != http.StatusBadRequest {
+			t.Fatalf("%s = %d", name, rec.Code)
+		}
+	}
+	if _, err := registerUser("otro3", "password1"); err != nil {
+		t.Fatal(err)
+	}
+	ocookie, ocsrf := loginAs(t, "otro3", "password1")
+	if rec := doReq(env.mux, http.MethodGet, ruta, nil, ocookie); rec.Code != http.StatusForbidden {
+		t.Fatalf("ajeno get = %d", rec.Code)
+	}
+	if rec := doReq(env.mux, http.MethodPost, del, authedForm(ocsrf, nil), ocookie); rec.Code != http.StatusForbidden {
+		t.Fatalf("ajeno delete = %d", rec.Code)
+	}
+	rec = doReq(env.mux, http.MethodPost, ruta, authedForm(acsrf, map[string]string{"body": "por admin"}), acookie)
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("admin post = %d", rec.Code)
+	}
+	if rec := doReq(env.mux, http.MethodGet, "/reply/999999/edit", nil, ucookie); rec.Code != http.StatusNotFound {
+		t.Fatalf("404 = %d", rec.Code)
+	}
+	if rec := doReq(env.mux, http.MethodPost, del, authedForm(ucsrf, nil), ucookie); rec.Code != http.StatusSeeOther {
+		t.Fatalf("dueño delete = %d", rec.Code)
+	}
+	rs, _ = listReplies(tid)
+	if len(rs) != 0 {
+		t.Fatal("respuesta sigue")
+	}
+	// Los botones aparecen para el autor en el HTML del hilo.
+	_ = addReply(tid, env.user.ID, "visible")
+	rec = doReq(env.mux, http.MethodGet, fmt.Sprintf("/forum/%d", tid), nil, ucookie)
+	if !strings.Contains(rec.Body.String(), "EDITAR") || !strings.Contains(rec.Body.String(), "/reply/") {
+		t.Fatal("sin botones de respuesta en el hilo")
+	}
+}
+
 func TestMemberNews(t *testing.T) {
 	env := setupTestDB(t)
 	m, _ := registerUser("banda2", "password1")

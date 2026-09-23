@@ -280,6 +280,34 @@ seleccionar por identificador exacto (username/id), nunca por posición en
 HTML scrapeado. Disculpa debida al usuario afectado: ningún contenido suyo se
 tocó y el rol duró minutos.
 
+## 2026-09-23 — Reporte: "no hay botones en comentarios" (era replies)
+
+Qué: reporte de que editar comentarios no mostraba botones (pero posts sí).
+Investigación: plantilla y deploy correctos; reproducido en vivo — los
+botones SÍ aparecen para autor (`/comment/7/edit` en HTML) y admin. Preguntado
+dónde miraba: **hilo del foro, sección RESPUESTAS**. Causa: las respuestas del
+foro nunca tuvieron edición (el punto 2 del pedido cubría comentarios de
+noticias); el modelo mental "respuestas = comentarios" es razonable, así que
+se implementó lo mismo para replies: `getReply/updateReply/deleteReply`,
+rutas `/reply/{id}/edit|delete` (autor+admin, validación ≤20000), plantilla
+`edit_reply.html` + botones en `thread.html`, tests (`TestReplyMutations`,
+`TestReplyEditDelete`) y fila en README. `gosec` 0, cobertura por confirmar
+en CI.
+`https://44-218-216-230.sslip.io`: registro, hilo con YouTube (iframe
+`youtube-nocookie` presente), edición de hilo, panel `/admin/users`,
+promoción a member, noticia de member con embed, comentar, editar y borrar
+comentario, borrar hilo propio, borrar noticia propia, auto-eliminar cuenta
+(sesión muerta, usuario fuera del panel). La BD productiva migró sola a v2 en
+el arranque (home 200, usuarios reales intactos) y la limpieza dejó cero
+rastros (404s + panel limpio + contenido ajeno intacto).
+FALLO MÍO (importante): al promover por posición (`head -2 | tail -1`) en vez
+de por nombre, ascendí a `member` a `zekar`, un usuario REAL del sitio, en vez
+de a mi cuenta de prueba. Lo detecté al listar usuarios y lo revertí de
+inmediato a `user` (verificado en el panel). Lección: en producción, siempre
+seleccionar por identificador exacto (username/id), nunca por posición en
+HTML scrapeado. Disculpa debida al usuario afectado: ningún contenido suyo se
+tocó y el rol duró minutos.
+
 Qué: enlaces de YouTube en noticias/foro/comentarios se muestran como
 reproductor embebido en vez de link pelado.
 Cómo: `renderMarkdown` pasa el HTML por `embedYouTubeLinks`, que localiza
