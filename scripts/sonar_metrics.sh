@@ -40,7 +40,7 @@ except Exception:
 }
 
 if [[ -n "${SONAR_TOKEN:-}" ]]; then
-	KEYS="bugs vulnerabilities security_hotspots code_smells coverage duplicated_lines_density ncloc reliability_rating security_rating maintainability_rating sqale_index"
+	KEYS="bugs vulnerabilities security_hotspots code_smells coverage duplicated_lines_density ncloc reliability_rating security_rating sqale_rating sqale_index"
 	for k in $KEYS; do M[$k]="?"; done
 	# Rondas de reintento: el Compute Engine puede tardar minutos.
 	for round in $(seq 1 12); do
@@ -99,7 +99,9 @@ try:
     items=d.get('issues',[])
 except Exception:
     items=[]
-for it in items[:20]:
+vulns=[it for it in items if (it.get('type') or '')=='VULNERABILITY']
+smells=[it for it in items if (it.get('type') or '')!='VULNERABILITY']
+for it in vulns + smells[:15]:
     sev=(it.get('impacts') or [{}])[0].get('severity','?')
     out.append("| {} | {} | {}:{} | {} |".format(
         (it.get('type') or '?'), sev,

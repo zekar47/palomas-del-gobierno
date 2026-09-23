@@ -6,15 +6,18 @@ on:
 
 permissions:
   contents: read
-  security-events: write
 
 jobs:
   test:
     runs-on: ubuntu-latest
+    # security-events solo aquí: lo exige subir el SARIF de gosec.
+    permissions:
+      contents: read
+      security-events: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version-file: go.mod
           cache: true
@@ -22,14 +25,14 @@ jobs:
       - name: go vet + gofmt
         run: |
           go vet ./...
-          test -z "$(gofmt -l . | grep -v '^vendor/')" || (echo "archivos sin formatear"; gofmt -l . | grep -v '^vendor/'; exit 1)
+          [[ -z "$(gofmt -l . | grep -v '^vendor/')" ]] || (echo "archivos sin formatear"; gofmt -l . | grep -v '^vendor/'; exit 1)
 
       - name: Tests + gate de cobertura (>=80%)
         run: ./scripts/check_coverage.sh
 
       - name: Subir reporte HTML de cobertura
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: coverage-html
           path: coverage.html
@@ -39,21 +42,21 @@ jobs:
 
       - name: gosec (SARIF)
         run: |
-          go install github.com/securego/gosec/v2/cmd/gosec@latest
+          go install github.com/securego/gosec/v2/cmd/gosec@v2.29.0
           $(go env GOPATH)/bin/gosec -no-fail -fmt sarif -out gosec.sarif ./...
 
       - name: Subir SARIF a Code Scanning
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@3ea06614dafe36dec890db3446326e0d40ce53d4 # v3
         with:
           sarif_file: gosec.sarif
 
       - name: govulncheck
         run: |
-          go install golang.org/x/vuln/cmd/govulncheck@latest
+          go install golang.org/x/vuln/cmd/govulncheck@v1.8.0
           $(go env GOPATH)/bin/govulncheck ./...
 
       - name: Subir coverage.out (formato gocover, lo lee SonarCloud)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: coverage-out
           path: coverage.out
@@ -74,20 +77,20 @@ jobs:
             echo "present=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
         if: steps.sonar.outputs.present == 'true'
 
       - name: Descargar coverage.out
         if: steps.sonar.outputs.present == 'true'
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: coverage-out
 
       - name: Análisis SonarCloud
         if: steps.sonar.outputs.present == 'true'
-        uses: SonarSource/sonarcloud-github-action@v3
+        uses: SonarSource/sonarcloud-github-action@383f7e52eae3ab0510c3cb0e7d9d150bbaeab838 # v3
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
@@ -102,7 +105,7 @@ jobs:
 
       - name: Subir reporte de métricas
         if: steps.sonar.outputs.present == 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: metricas-calidad
           path: docs/metrics/calidad.md
