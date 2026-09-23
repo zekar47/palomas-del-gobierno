@@ -213,3 +213,16 @@ construcción: `gosec` ahora corre vía `securego/gosec@v2.29.0` (pineado a SHA,
 mismo SARIF para Code Scanning) y `govulncheck` vía la action oficial
 `golang/govulncheck-action@v1.1.0` (pineada a SHA, sin checkout duplicado).
 Verificación pendiente: CI en curso.
+
+## 2026-09-23 — Cierre: Quality Gate en OK y métricas commiteadas
+
+Qué: tras la ronda 2 el reporte quedó: bugs 0, vulnerabilidades 5 (todas
+aceptadas por diseño: checkout dinámico solo-disparable en main, `Secure`
+condicional por flag, `LIMIT` entero interno), smells 0, deuda 0 min,
+cobertura 86.8%, duplicación 0%, fiabilidad A, seguridad C (por las 5
+aceptadas heredadas), mantenibilidad A. **Quality Gate: OK** en las 6
+condiciones. El reporte se copió de artefacto a `docs/metrics/calidad.md`
+para que el repo documente el estado real.
+Pendiente opcional del dueño: en SonarCloud, marcar las 5 vulnerabilidades
+como "Accepted" (o "Won't fix" donde aplique) para que el rating de seguridad
+suba de C; no bloquean nada.
