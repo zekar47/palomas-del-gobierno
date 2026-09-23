@@ -1,0 +1,47 @@
+{{define "content"}}
+<header class="pagehead">
+  <h2>// MI CUENTA</h2>
+  <p class="dim">gestiona tu identidad palomil. eres @{{.User.Username}} ({{.User.Role}}).</p>
+</header>
+
+{{if .Error}}<div class="flash error">{{.Error}}</div>{{end}}
+{{if .Msg}}<div class="flash">{{.Msg}}</div>{{end}}
+
+<section class="card">
+  <h3>CAMBIAR NOMBRE</h3>
+  <form class="form" method="post" action="/account/username">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <p>
+      <label for="username">nuevo nombre (3-24 caracteres):</label>
+      <input type="text" id="username" name="username" value="{{.User.Username}}" required>
+    </p>
+    <p><button type="submit">GUARDAR NOMBRE</button></p>
+  </form>
+</section>
+
+<section class="card">
+  <h3>CAMBIAR CONTRASEÑA</h3>
+  <form class="form" method="post" action="/account/password">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <p>
+      <label for="current">contraseña actual:</label>
+      <input type="password" id="current" name="current" required>
+    </p>
+    <p>
+      <label for="new">nueva contraseña (mínimo 6 caracteres):</label>
+      <input type="password" id="new" name="new" required>
+    </p>
+    <p><button type="submit">GUARDAR CONTRASEÑA</button></p>
+  </form>
+</section>
+
+<section class="card">
+  <h3>ELIMINAR CUENTA</h3>
+  <p class="dim">borra tu cuenta y TODO lo que publicaste (noticias, comentarios, hilos, respuestas). sin retorno.</p>
+  <form class="form" method="post" action="/account/delete"
+        onsubmit="return confirm('¿seguro? se borra tu cuenta y todo tu contenido.');">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <p><button class="btn danger" type="submit">ELIMINAR MI CUENTA</button></p>
+  </form>
+</section>
+{{end}}

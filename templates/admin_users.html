@@ -1,0 +1,42 @@
+{{define "content"}}
+<header class="pagehead">
+  <h2>// USUARIOS</h2>
+  <p class="dim">administración de cuentas. borrar un usuario borra TODO su contenido.</p>
+</header>
+
+{{if .Error}}<div class="flash error">{{.Error}}</div>{{end}}
+
+<table class="admin-table">
+  <thead>
+    <tr><th>ID</th><th>USUARIO</th><th>ROL</th><th>ALTA</th><th>ACCIONES</th></tr>
+  </thead>
+  <tbody>
+    {{range .Users}}
+    <tr>
+      <td>{{.ID}}</td>
+      <td>@{{.Username}}</td>
+      <td>{{.Role}}</td>
+      <td>{{.CreatedAt | timeFmt}}</td>
+      <td>
+        {{if eqstr .Role "admin"}}
+        <span class="dim">admin (intocable aquí)</span>
+        {{else}}
+        <form class="inline-form" method="post" action="/admin/users/{{.ID}}/role">
+          <input type="hidden" name="csrf" value="{{$.CSRF}}">
+          <input type="hidden" name="role" value="{{if eqstr .Role "member"}}user{{else}}member{{end}}">
+          <button class="btn small" type="submit">{{if eqstr .Role "member"}}QUITA BANDA{{else}}HAZ BANDA{{end}}</button>
+        </form>
+        <form class="inline-form" method="post" action="/admin/users/{{.ID}}/delete"
+              onsubmit="return confirm('¿borrar a @{{.Username}} y TODO su contenido?');">
+          <input type="hidden" name="csrf" value="{{$.CSRF}}">
+          <button class="btn small danger" type="submit">BORRAR</button>
+        </form>
+        {{end}}
+      </td>
+    </tr>
+    {{end}}
+  </tbody>
+</table>
+
+<p class="dim">rol <strong>member</strong> = miembro de la banda: puede crear y gestionar sus propias noticias. nada más.</p>
+{{end}}

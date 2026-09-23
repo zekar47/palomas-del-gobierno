@@ -44,13 +44,15 @@
     <a href="/forum">FORO</a>
     <a href="/news/feed.xml" type="application/atom+xml">FEED</a>
     {{if .User}}
-    {{if eqstr .User.Role "admin"}}<a href="/admin/new">+ NOTICIA</a>{{end}}
+    {{if .User.CanPostNews}}<a href="/admin/new">+ NOTICIA</a>{{end}}
     {{end}}
   </nav>
 
   <p class="sessionbar">
     {{if .User}}
-    <span class="whoami">@{{.User.Username}}{{if eqstr .User.Role "admin"}} · ADMIN{{end}}</span>
+    <span class="whoami">@{{.User.Username}} · {{.User.Role}}</span>
+    <a href="/account">CUENTA</a>
+    {{if .User.IsAdmin}}<a href="/admin/users">USUARIOS</a>{{end}}
     <form class="inline" method="post" action="/logout">
       <input type="hidden" name="csrf" value="{{.CSRF}}">
       <button type="submit">SALIR</button>
@@ -74,7 +76,7 @@
     <a href="/news">NOTICIAS</a> ·
     <a href="/forum">FORO</a> ·
     <a href="/register">ALISTARSE</a>
-    {{if .User}}{{if eqstr .User.Role "admin"}} · <a href="/admin/new">REDACTAR</a>{{end}}{{end}}
+    {{if .User}}{{if .User.CanPostNews}} · <a href="/admin/new">REDACTAR</a>{{end}}{{end}}
   </nav>
   <p class="feeds">
     CANALES DE DIFUSIÓN:

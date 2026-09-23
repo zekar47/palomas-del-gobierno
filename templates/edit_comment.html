@@ -1,0 +1,18 @@
+{{define "content"}}
+<header class="pagehead">
+  <h2>// EDITAR COMENTARIO</h2>
+  <p class="dim">corrige tu comentario. markdown habilitado.</p>
+</header>
+
+<form class="card form" method="post" action="/comment/{{.Comment.ID}}/edit">
+  <input type="hidden" name="csrf" value="{{.CSRF}}">
+  <p>
+    <label for="body">comentario (markdown):</label>
+    <textarea id="body" name="body" rows="6" required>{{.Comment.Body}}</textarea>
+  </p>
+  <p class="toolbar">
+    <button type="submit">GUARDAR</button>
+    <a class="btn small" href="/news/{{.Comment.PostID}}">CANCELAR</a>
+  </p>
+</form>
+{{end}}

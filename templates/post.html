@@ -22,7 +22,7 @@
   </div>
   {{if not .User}}<p class="dim"><a href="/login">ingresa</a> para votar y comentar.</p>{{end}}
 
-  {{if .User}}{{if eqstr .User.Role "admin"}}
+  {{if .User}}{{if .User.CanPostNews}}{{if canedit .User .Post.AuthorID}}
   <p class="toolbar">
     <a class="btn small" href="/admin/edit/{{.Post.ID}}">EDITAR</a>
     <form class="inline" method="post" action="/admin/delete/{{.Post.ID}}"
@@ -31,7 +31,7 @@
       <button class="btn small danger" type="submit">BORRAR</button>
     </form>
   </p>
-  {{end}}{{end}}
+  {{end}}{{end}}{{end}}
 
   <section class="comments">
     <h3>// COMENTARIOS ({{.Post.Comments}})</h3>
@@ -42,6 +42,16 @@
       <li class="comment">
         <p class="meta">@{{.Username}} · [{{.CreatedAt | timeFmt}}]</p>
         <div class="comment-body">{{.Body | markdown}}</div>
+        {{if canedit $.User .UserID}}
+        <p class="toolbar">
+          <a class="btn small" href="/comment/{{.ID}}/edit">EDITAR</a>
+          <form class="inline" method="post" action="/comment/{{.ID}}/delete"
+                onsubmit="return confirm('¿borrar este comentario?');">
+            <input type="hidden" name="csrf" value="{{$.CSRF}}">
+            <button class="btn small danger" type="submit">BORRAR</button>
+          </form>
+        </p>
+        {{end}}
       </li>
       {{end}}
     </ul>

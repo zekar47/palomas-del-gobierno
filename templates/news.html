@@ -4,7 +4,7 @@
   <p class="dim">el boletín oficial (no oficial). <a href="/news/feed.xml" type="application/atom+xml">suscripción atom</a></p>
 </header>
 
-{{if .User}}{{if eqstr .User.Role "admin"}}
+{{if .User}}{{if .User.CanPostNews}}
 <p class="toolbar"><a class="btn" href="/admin/new">+ NUEVA NOTICIA</a></p>
 {{end}}{{end}}
 

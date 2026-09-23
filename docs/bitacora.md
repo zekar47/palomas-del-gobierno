@@ -244,6 +244,37 @@ Fallo: el caso "host en mayúsculas" falló — Goldmark no auto-enlaza hosts co
 mayúsculas (queda texto plano). No es bug nuestro: se fijó como caso inválido
 documentado.
 
+## 2026-09-23 — Cuentas e hilos editables (3/3): handlers + plantillas + YouTube en UI
+
+Qué: rutas y páginas para editar/borrar hilos y comentarios propios
+(`autor+admin`, ajeno → 403), panel `/admin/users` (ver, alternar
+user↔member, borrar con cascada total y archivos; jamás cero admins) y
+`/account` (renombrar, cambiar clave con verificación, auto-eliminar con
+logout). Plantillas nuevas: `edit_thread`, `edit_comment`, `admin_users`,
+`account`; `post`/`thread`/`base`/`news` muestran controles según
+`canedit`/`CanPostNews`/`IsAdmin`. Rutas de noticias pasaron de
+`requireAdmin` a `requireMember` + chequeo `canEdit` en edit/delete.
+Fallo: `POST /forum/edit/{id}` chocaba en el mux con `POST /forum/{id}/reply`
+(panic al registrar). Arreglo: forma `/forum/{id}/edit` y `/forum/{id}/delete`
+(literales disjuntos, sin colisión). Y 3 G104 nuevos de `gosec` en el código
+nuevo (`rows.Close`, `Sscanf`): corregidos de verdad (defer + manejo
+explícito), `gosec` de vuelta a 0.
+Verificación: `handlers_roles_test.go` (matrices dueño/ajeno/admin/anon/404 +
+member) en verde; cobertura total 87.4%; README (rutas, roles, esquema) al día.
+
+Qué: enlaces de YouTube en noticias/foro/comentarios se muestran como
+reproductor embebido en vez de link pelado.
+Cómo: `renderMarkdown` pasa el HTML por `embedYouTubeLinks`, que localiza
+`<a href>` y, solo si el host está en allowlist (youtube.com y subdominios,
+youtu.be) y el ID valida `^[A-Za-z0-9_-]{11}$`, sustituye por iframe a
+`youtube-nocookie.com` + enlace fallback (para w3m/noscript). URLs con
+parámetros extra funcionan (se desescapa `&amp;` antes de parsear); lo demás
+(vimeo, IDs malos, código inline, hosts parecidos) queda intacto. CSS
+`.video-embed` 16:9 fluido + tabla admin.
+Fallo: el caso "host en mayúsculas" falló — Goldmark no auto-enlaza hosts con
+mayúsculas (queda texto plano). No es bug nuestro: se fijó como caso inválido
+documentado.
+
 ## 2026-09-23 — Cierre: Quality Gate en OK y métricas commiteadas
 
 Qué: tras la ronda 2 el reporte quedó: bugs 0, vulnerabilidades 5 (todas

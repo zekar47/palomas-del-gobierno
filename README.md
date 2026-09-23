@@ -213,7 +213,7 @@ Ejemplo: `POST /news/3/comment` (comentar noticia).
 6. render ejecuta template "base" (base.html + post.html) con FuncMap (markdown, timeFmt, etc.) → HTML + Content-Type text/html.
 ```
 
-Lecturas públicas (`GET /`, `/news`, `/forum`, feeds) no pasan middlewares. Mutaciones siempre exigen `POST + sesión + CSRF`. Admin exige además `role=='admin'`.
+Lecturas públicas (`GET /`, `/news`, `/forum`, feeds) no pasan middlewares. Mutaciones siempre exigen `POST + sesión + CSRF`. Noticias exigen `role IN ('admin','member')` (`requireMember`); crear es de ambos, pero editar/borrar noticia ajena solo admin (`canEdit`). Administración de usuarios exige `role=='admin'`. Hilos y comentarios los edita/borra su autor o un admin (`canEdit`, ajeno → 403).
 
 ---
 
@@ -222,7 +222,8 @@ Lecturas públicas (`GET /`, `/news`, `/forum`, feeds) no pasan middlewares. Mut
 Definido en `db.go:12-68` (`const schema`, aplicado por `migrate()` con `db.Exec(schema)`). Todo `IF NOT EXISTS`, timestamps como `TEXT datetime('now')` (`YYYY-MM-DD HH:MM:SS`).
 
 ```sql
-users(id PK, username UNIQUE COLLATE NOCASE, password_hash, role CHECK('admin','user') DEFAULT 'user', created_at)
+users(id PK, username UNIQUE COLLATE NOCASE, password_hash, role CHECK('admin','member','user') DEFAULT 'user', created_at)
+meta(k PK, v) — versionado de esquema (`schema_version=2`; la v2 amplió el rol a `member` reconstruyendo `users`).
 posts(id PK, author_id→users, title, body DEFAULT '', image_path DEFAULT '', video_path DEFAULT '', created_at, updated_at)
 comments(id PK, post_id→posts ON DELETE CASCADE, user_id→users, body, created_at)
 reactions(post_id→posts ON DELETE CASCADE, user_id→users, kind CHECK('like','dislike'), PK(post_id,user_id))
@@ -348,7 +349,7 @@ Definidas en `routes()` (`handlers.go:88-127`) con sintaxis Go 1.22 `METHOD patt
 | GET | `/news/{id}` | `newsShow` | pública | `getPost+listComments+myReaction` → `post.html`. `id≤0` o no existe → 404. |
 | POST | `/news/{id}/reaction` | `newsReaction` | login+CSRF | `reaction=like\|dislike` → `toggleReaction` → `303 /news/{id}`. Otro valor → 400. |
 | POST | `/news/{id}/comment` | `newsComment` | login+CSRF | `body` trim, no vacío, ≤4000 runas → `addComment` → `303`. |
-| GET | `/admin/new` | `adminNewGet` | admin | Form vacío `admin_edit.html` (`IsEdit=false`). |
+| GET | `/admin/new` | `adminNewGet` | member (admin o banda) | Form vacío `admin_edit.html` (`IsEdit=false`). |
 | POST | `/admin/new` | `adminNewPost` | admin+CSRF | Multipart (ver §13) → crea post + subidas → `303 /news/{id}`. |
 | GET | `/admin/edit/{id}` | `adminEditGet` | admin | Form precargado (`IsEdit=true`). No existe → 404. |
 | POST | `/admin/edit/{id}` | `adminEditPost` | admin+CSRF | Actualiza título/cuerpo/imagen/video (ver §13). |
@@ -360,6 +361,19 @@ Definidas en `routes()` (`handlers.go:88-127`) con sintaxis Go 1.22 `METHOD patt
 | GET | `/forum/{id}` | `forumThread` | pública | `getThread+listReplies` → `thread.html`. No existe → 404. |
 | POST | `/forum/{id}/reply` | `forumReply` | login+CSRF | Valida body → `addReply` (tx + bump) → `303`. |
 | POST | `/preview` | `previewHandler` | login+CSRF | Devuelve HTML del Markdown `body`. Usado por `app.js`. |
+| GET | `/forum/{id}/edit` | `forumEditGet` | login (autor/admin) | Form editar hilo. Ajeno → 403. |
+| POST | `/forum/{id}/edit` | `forumEditPost` | login+CSRF (autor/admin) | Valida título/cuerpo → `updateThread` → `303 /forum/{id}`. |
+| POST | `/forum/{id}/delete` | `forumDelete` | login+CSRF (autor/admin) | `deleteThread` (cascada replies) → `303 /forum`. |
+| GET | `/comment/{id}/edit` | `commentEditGet` | login (autor/admin) | Form editar comentario. Ajeno → 403. |
+| POST | `/comment/{id}/edit` | `commentEditPost` | login+CSRF (autor/admin) | Valida body ≤4000 → `updateComment` → `303 /news/{post}`. |
+| POST | `/comment/{id}/delete` | `commentDelete` | login+CSRF (autor/admin) | `deleteComment` → `303 /news/{post}`. |
+| GET | `/admin/users` | `adminUsers` | admin | Tabla de usuarios (rol, alta, acciones). |
+| POST | `/admin/users/{id}/role` | `adminUserRole` | admin+CSRF | `setUserRole` user↔member (nunca deja cero admins). |
+| POST | `/admin/users/{id}/delete` | `adminUserDelete` | admin+CSRF | `deleteUser` (cascada total + archivos) → `303 /admin/users`. |
+| GET | `/account` | `accountGet` | login | Cuenta propia (renombrar, clave, eliminar). |
+| POST | `/account/username` | `accountUsername` | login+CSRF | `updateUsername` (único, 3-24). |
+| POST | `/account/password` | `accountPassword` | login+CSRF | Verifica actual + `setPassword` (≥6). |
+| POST | `/account/delete` | `accountDelete` | login+CSRF | `deleteUser` propio + logout → `303 /`. |
 | * | `/` catch-all | `notFoundHandler` | pública | `404 + notfound.html` ("PALOMA EXTRAVIADA"). También usado manualmente por `newsShow/forumThread/admin*` cuando `parseID==0` o `get*` falla. |
 
 Helpers: `parseID(s)→int64` (`handlers.go:80-86`, `0` si inválido/≤0), `staticHandler`, `uploadsHandler`, `safeNext`, `saveUpload/joinExts/removeUploads`.

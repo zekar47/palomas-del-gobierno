@@ -4,6 +4,17 @@
   <p class="meta">por @{{.Thread.Username}} · [{{.Thread.CreatedAt | timeFmt}}]</p>
   <div class="post-body">{{.Thread.Body | markdown}}</div>
 
+  {{if canedit .User .Thread.UserID}}
+  <p class="toolbar">
+    <a class="btn small" href="/forum/{{.Thread.ID}}/edit">EDITAR</a>
+    <form class="inline" method="post" action="/forum/{{.Thread.ID}}/delete"
+          onsubmit="return confirm('¿borrar este hilo y sus respuestas?');">
+      <input type="hidden" name="csrf" value="{{.CSRF}}">
+      <button class="btn small danger" type="submit">BORRAR</button>
+    </form>
+  </p>
+  {{end}}
+
   <section class="comments">
     <h3>// RESPUESTAS ({{.Thread.Replies}})</h3>
 

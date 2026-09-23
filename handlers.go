@@ -37,13 +37,14 @@ var funcs = template.FuncMap{
 		}
 		return t.UTC().Format("02-01-2006 15:04")
 	},
-	"eqstr": func(a, b string) bool { return a == b },
+	"eqstr":   func(a, b string) bool { return a == b },
+	"canedit": func(u *User, authorID int64) bool { return canEdit(u, authorID) },
 }
 
 var pageTemplates = map[string]*template.Template{}
 
 func loadTemplates() error {
-	pages := []string{"home", "news", "post", "admin_edit", "forum", "thread", "new_thread", "login", "register", "notfound"}
+	pages := []string{"home", "news", "post", "admin_edit", "admin_users", "account", "forum", "thread", "edit_thread", "edit_comment", "new_thread", "login", "register", "notfound"}
 	for _, p := range pages {
 		t, err := template.New("base").Funcs(funcs).ParseFiles("templates/base.html", "templates/"+p+".html")
 		if err != nil {
@@ -106,11 +107,28 @@ func routes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /news/{id}/comment", requireLogin(requirePostCSRF(newsComment)))
 
 	// administración
-	mux.HandleFunc("GET /admin/new", requireAdmin(adminNewGet))
-	mux.HandleFunc("POST /admin/new", requireAdmin(requirePostCSRF(adminNewPost)))
-	mux.HandleFunc("GET /admin/edit/{id}", requireAdmin(adminEditGet))
-	mux.HandleFunc("POST /admin/edit/{id}", requireAdmin(requirePostCSRF(adminEditPost)))
-	mux.HandleFunc("POST /admin/delete/{id}", requireAdmin(requirePostCSRF(adminDelete)))
+	mux.HandleFunc("GET /admin/new", requireMember(adminNewGet))
+	mux.HandleFunc("POST /admin/new", requireMember(requirePostCSRF(adminNewPost)))
+	mux.HandleFunc("GET /admin/edit/{id}", requireMember(adminEditGet))
+	mux.HandleFunc("POST /admin/edit/{id}", requireMember(requirePostCSRF(adminEditPost)))
+	mux.HandleFunc("POST /admin/delete/{id}", requireMember(requirePostCSRF(adminDelete)))
+	mux.HandleFunc("GET /admin/users", requireAdmin(adminUsers))
+	mux.HandleFunc("POST /admin/users/{id}/role", requireAdmin(requirePostCSRF(adminUserRole)))
+	mux.HandleFunc("POST /admin/users/{id}/delete", requireAdmin(requirePostCSRF(adminUserDelete)))
+
+	// edición propia de hilos y comentarios
+	mux.HandleFunc("GET /forum/{id}/edit", requireLogin(forumEditGet))
+	mux.HandleFunc("POST /forum/{id}/edit", requireLogin(requirePostCSRF(forumEditPost)))
+	mux.HandleFunc("POST /forum/{id}/delete", requireLogin(requirePostCSRF(forumDelete)))
+	mux.HandleFunc("GET /comment/{id}/edit", requireLogin(commentEditGet))
+	mux.HandleFunc("POST /comment/{id}/edit", requireLogin(requirePostCSRF(commentEditPost)))
+	mux.HandleFunc("POST /comment/{id}/delete", requireLogin(requirePostCSRF(commentDelete)))
+
+	// cuenta propia
+	mux.HandleFunc("GET /account", requireLogin(accountGet))
+	mux.HandleFunc("POST /account/username", requireLogin(requirePostCSRF(accountUsername)))
+	mux.HandleFunc("POST /account/password", requireLogin(requirePostCSRF(accountPassword)))
+	mux.HandleFunc("POST /account/delete", requireLogin(requirePostCSRF(accountDelete)))
 
 	// foro
 	mux.HandleFunc("GET /forum", forumList)
@@ -332,6 +350,10 @@ func adminEditGet(w http.ResponseWriter, r *http.Request) {
 		notFoundHandler(w, r)
 		return
 	}
+	if !canEdit(currentUser(r), p.AuthorID) {
+		http.Error(w, "403 — no puedes editar esta noticia", http.StatusForbidden)
+		return
+	}
 	render(w, "admin_edit", adminData{pageData: loadPage(r, "EDITAR NOTICIA"), Post: p, IsEdit: true})
 }
 
@@ -340,6 +362,10 @@ func adminEditPost(w http.ResponseWriter, r *http.Request) {
 	p, err := getPost(id)
 	if err != nil {
 		notFoundHandler(w, r)
+		return
+	}
+	if !canEdit(currentUser(r), p.AuthorID) {
+		http.Error(w, "403 — no puedes editar esta noticia", http.StatusForbidden)
 		return
 	}
 	if err := r.ParseMultipartForm(8 << 20); err != nil {
@@ -390,6 +416,10 @@ func adminDelete(w http.ResponseWriter, r *http.Request) {
 	p, err := getPost(id)
 	if err != nil {
 		notFoundHandler(w, r)
+		return
+	}
+	if !canEdit(currentUser(r), p.AuthorID) {
+		http.Error(w, "403 — no puedes borrar esta noticia", http.StatusForbidden)
 		return
 	}
 	removeUploads(p.ImagePath, p.VideoPath)
@@ -604,6 +634,249 @@ func previewHandler(w http.ResponseWriter, r *http.Request) {
 	if _, err := io.WriteString(w, string(renderMarkdown(body))); err != nil {
 		log.Printf("ERROR escribiendo preview: %v", err)
 	}
+}
+
+// ---------------------------------------------------------------------------
+// edición propia de hilos y comentarios + administración de usuarios + cuenta
+// ---------------------------------------------------------------------------
+
+type threadEditData struct {
+	pageData
+	Thread *Thread
+}
+
+func forumEditGet(w http.ResponseWriter, r *http.Request) {
+	t, err := getThread(parseID(r.PathValue("id")))
+	if err != nil {
+		notFoundHandler(w, r)
+		return
+	}
+	if !canEdit(currentUser(r), t.UserID) {
+		http.Error(w, "403 — no puedes editar este hilo", http.StatusForbidden)
+		return
+	}
+	render(w, "edit_thread", threadEditData{pageData: loadPage(r, "EDITAR HILO"), Thread: t})
+}
+
+func forumEditPost(w http.ResponseWriter, r *http.Request) {
+	t, err := getThread(parseID(r.PathValue("id")))
+	if err != nil {
+		notFoundHandler(w, r)
+		return
+	}
+	if !canEdit(currentUser(r), t.UserID) {
+		http.Error(w, "403 — no puedes editar este hilo", http.StatusForbidden)
+		return
+	}
+	title := strings.TrimSpace(r.PostFormValue("title"))
+	body := strings.TrimSpace(r.PostFormValue("body"))
+	flash := ""
+	switch {
+	case title == "":
+		flash = "el hilo necesita un título"
+	case body == "":
+		flash = "el hilo necesita contenido"
+	case len([]rune(body)) > 20000:
+		flash = "contenido demasiado largo"
+	}
+	if flash != "" {
+		pd := loadPage(r, "EDITAR HILO")
+		pd.Flash = flash
+		render(w, "edit_thread", threadEditData{pageData: pd, Thread: t})
+		return
+	}
+	if err := updateThread(t.ID, title, body); err != nil {
+		http.Error(w, "error interno", http.StatusInternalServerError)
+		return
+	}
+	http.Redirect(w, r, fmt.Sprintf("/forum/%d", t.ID), http.StatusSeeOther)
+}
+
+func forumDelete(w http.ResponseWriter, r *http.Request) {
+	t, err := getThread(parseID(r.PathValue("id")))
+	if err != nil {
+		notFoundHandler(w, r)
+		return
+	}
+	if !canEdit(currentUser(r), t.UserID) {
+		http.Error(w, "403 — no puedes borrar este hilo", http.StatusForbidden)
+		return
+	}
+	_ = deleteThread(t.ID)
+	http.Redirect(w, r, "/forum", http.StatusSeeOther)
+}
+
+type commentEditData struct {
+	pageData
+	Comment *Comment
+}
+
+func commentEditGet(w http.ResponseWriter, r *http.Request) {
+	c, err := getComment(parseID(r.PathValue("id")))
+	if err != nil {
+		notFoundHandler(w, r)
+		return
+	}
+	if !canEdit(currentUser(r), c.UserID) {
+		http.Error(w, "403 — no puedes editar este comentario", http.StatusForbidden)
+		return
+	}
+	render(w, "edit_comment", commentEditData{pageData: loadPage(r, "EDITAR COMENTARIO"), Comment: c})
+}
+
+func commentEditPost(w http.ResponseWriter, r *http.Request) {
+	c, err := getComment(parseID(r.PathValue("id")))
+	if err != nil {
+		notFoundHandler(w, r)
+		return
+	}
+	if !canEdit(currentUser(r), c.UserID) {
+		http.Error(w, "403 — no puedes editar este comentario", http.StatusForbidden)
+		return
+	}
+	body := strings.TrimSpace(r.PostFormValue("body"))
+	if body == "" {
+		http.Error(w, "comentario vacío", http.StatusBadRequest)
+		return
+	}
+	if len([]rune(body)) > 4000 {
+		http.Error(w, "comentario demasiado largo (máx 4000 caracteres)", http.StatusBadRequest)
+		return
+	}
+	if err := updateComment(c.ID, body); err != nil {
+		http.Error(w, "error interno", http.StatusInternalServerError)
+		return
+	}
+	http.Redirect(w, r, fmt.Sprintf("/news/%d", c.PostID), http.StatusSeeOther)
+}
+
+func commentDelete(w http.ResponseWriter, r *http.Request) {
+	c, err := getComment(parseID(r.PathValue("id")))
+	if err != nil {
+		notFoundHandler(w, r)
+		return
+	}
+	if !canEdit(currentUser(r), c.UserID) {
+		http.Error(w, "403 — no puedes borrar este comentario", http.StatusForbidden)
+		return
+	}
+	_ = deleteComment(c.ID)
+	http.Redirect(w, r, fmt.Sprintf("/news/%d", c.PostID), http.StatusSeeOther)
+}
+
+// ---------------------------------------------------------------------------
+// administración de usuarios (solo admin)
+// ---------------------------------------------------------------------------
+
+type adminUsersData struct {
+	pageData
+	Users []*User
+	Error string
+}
+
+func adminUsers(w http.ResponseWriter, r *http.Request) {
+	users, err := listUsers()
+	if err != nil {
+		http.Error(w, "error interno", http.StatusInternalServerError)
+		return
+	}
+	render(w, "admin_users", adminUsersData{pageData: loadPage(r, "USUARIOS"), Users: users})
+}
+
+func adminUsersWithError(w http.ResponseWriter, r *http.Request, msg string) {
+	users, err := listUsers()
+	if err != nil {
+		http.Error(w, "error interno", http.StatusInternalServerError)
+		return
+	}
+	render(w, "admin_users", adminUsersData{pageData: loadPage(r, "USUARIOS"), Users: users, Error: msg})
+}
+
+func adminUserRole(w http.ResponseWriter, r *http.Request) {
+	id := parseID(r.PathValue("id"))
+	if id == 0 {
+		notFoundHandler(w, r)
+		return
+	}
+	if _, err := getUser(id); err != nil {
+		notFoundHandler(w, r)
+		return
+	}
+	if err := setUserRole(id, r.PostFormValue("role")); err != nil {
+		adminUsersWithError(w, r, err.Error())
+		return
+	}
+	http.Redirect(w, r, "/admin/users", http.StatusSeeOther)
+}
+
+func adminUserDelete(w http.ResponseWriter, r *http.Request) {
+	id := parseID(r.PathValue("id"))
+	if id == 0 {
+		notFoundHandler(w, r)
+		return
+	}
+	if _, err := getUser(id); err != nil {
+		notFoundHandler(w, r)
+		return
+	}
+	paths, err := deleteUser(id)
+	if err != nil {
+		adminUsersWithError(w, r, err.Error())
+		return
+	}
+	removeUploads(paths...)
+	http.Redirect(w, r, "/admin/users", http.StatusSeeOther)
+}
+
+// ---------------------------------------------------------------------------
+// cuenta propia
+// ---------------------------------------------------------------------------
+
+type accountData struct {
+	pageData
+	Error string
+	Msg   string
+}
+
+func accountGet(w http.ResponseWriter, r *http.Request) {
+	render(w, "account", accountData{pageData: loadPage(r, "MI CUENTA")})
+}
+
+func accountWithMsg(w http.ResponseWriter, r *http.Request, msg, errmsg string) {
+	render(w, "account", accountData{pageData: loadPage(r, "MI CUENTA"), Msg: msg, Error: errmsg})
+}
+
+func accountUsername(w http.ResponseWriter, r *http.Request) {
+	if err := updateUsername(currentUser(r).ID, r.PostFormValue("username")); err != nil {
+		accountWithMsg(w, r, "", err.Error())
+		return
+	}
+	accountWithMsg(w, r, "nombre actualizado", "")
+}
+
+func accountPassword(w http.ResponseWriter, r *http.Request) {
+	u := currentUser(r)
+	if !verifyPassword(u.ID, r.PostFormValue("current")) {
+		accountWithMsg(w, r, "", "la contraseña actual no coincide")
+		return
+	}
+	if err := setPassword(u.ID, r.PostFormValue("new")); err != nil {
+		accountWithMsg(w, r, "", err.Error())
+		return
+	}
+	accountWithMsg(w, r, "contraseña actualizada", "")
+}
+
+func accountDelete(w http.ResponseWriter, r *http.Request) {
+	u := currentUser(r)
+	paths, err := deleteUser(u.ID)
+	if err != nil {
+		accountWithMsg(w, r, "", err.Error())
+		return
+	}
+	removeUploads(paths...)
+	destroySession(w, r)
+	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
 
 func notFoundHandler(w http.ResponseWriter, r *http.Request) {

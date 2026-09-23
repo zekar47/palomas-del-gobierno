@@ -1,0 +1,31 @@
+{{define "content"}}
+<header class="pagehead">
+  <h2>// EDITAR HILO</h2>
+  <p class="dim">corrige tu transmisión. markdown habilitado.</p>
+</header>
+
+{{if .Flash}}<div class="flash error">{{.Flash}}</div>{{end}}
+
+<form class="card form" method="post" action="/forum/{{.Thread.ID}}/edit">
+  <input type="hidden" name="csrf" value="{{.CSRF}}">
+  <p>
+    <label for="title">título:</label>
+    <input type="text" id="title" name="title" value="{{.Thread.Title}}" required>
+  </p>
+  <p>
+    <label for="body">contenido (markdown):</label>
+    <textarea id="body" name="body" rows="10" required>{{.Thread.Body}}</textarea>
+  </p>
+  <p class="toolbar">
+    <button type="button" id="preview-btn" data-csrf="{{.CSRF}}">VISTA PREVIA</button>
+    <button type="submit">GUARDAR</button>
+    <a class="btn small" href="/forum/{{.Thread.ID}}">CANCELAR</a>
+  </p>
+</form>
+
+<div class="card" id="preview-wrap" hidden>
+  <h3>// VISTA PREVIA</h3>
+  <div id="preview" class="preview-box"></div>
+</div>
+<noscript><p class="dim">la vista previa en vivo necesita javascript.</p></noscript>
+{{end}}
