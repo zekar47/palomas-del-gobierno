@@ -262,6 +262,24 @@ explícito), `gosec` de vuelta a 0.
 Verificación: `handlers_roles_test.go` (matrices dueño/ajeno/admin/anon/404 +
 member) en verde; cobertura total 87.4%; README (rutas, roles, esquema) al día.
 
+## 2026-09-23 — Verificación en vivo en producción
+
+Qué: tras el deploy, flujo completo con curl contra
+`https://44-218-216-230.sslip.io`: registro, hilo con YouTube (iframe
+`youtube-nocookie` presente), edición de hilo, panel `/admin/users`,
+promoción a member, noticia de member con embed, comentar, editar y borrar
+comentario, borrar hilo propio, borrar noticia propia, auto-eliminar cuenta
+(sesión muerta, usuario fuera del panel). La BD productiva migró sola a v2 en
+el arranque (home 200, usuarios reales intactos) y la limpieza dejó cero
+rastros (404s + panel limpio + contenido ajeno intacto).
+FALLO MÍO (importante): al promover por posición (`head -2 | tail -1`) en vez
+de por nombre, ascendí a `member` a `zekar`, un usuario REAL del sitio, en vez
+de a mi cuenta de prueba. Lo detecté al listar usuarios y lo revertí de
+inmediato a `user` (verificado en el panel). Lección: en producción, siempre
+seleccionar por identificador exacto (username/id), nunca por posición en
+HTML scrapeado. Disculpa debida al usuario afectado: ningún contenido suyo se
+tocó y el rol duró minutos.
+
 Qué: enlaces de YouTube en noticias/foro/comentarios se muestran como
 reproductor embebido en vez de link pelado.
 Cómo: `renderMarkdown` pasa el HTML por `embedYouTubeLinks`, que localiza
