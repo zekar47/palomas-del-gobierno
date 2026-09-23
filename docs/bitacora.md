@@ -103,6 +103,17 @@ localmente). Supuse SHA256 sin mirar.
 Arreglo: `sha512sum -c -` en `scripts/instance_deploy.sh`.
 Lección: verificar el largo del hash antes de elegir la herramienta.
 
+## 2026-09-23 — TLS (3): el tarball se descargaba con otro nombre
+
+Qué: tras arreglar lo de SHA512, falló con `sha512sum: caddy_2.11.4...tar.gz:
+No such file or directory`. El `curl -o caddy.tgz` renombraba el archivo pero
+el checksum referencia el nombre original del release.
+Arreglo: descargar conservando el nombre original
+(`-o "caddy_${VER}_linux_amd64.tar.gz"`) y limpiar el `caddy.tgz` huérfano de
+intentos anteriores.
+Lección: si se verifica checksum contra nombre de archivo, no renombrar al
+descargar.
+
 ## 2026-09-23 — SonarCloud: conflicto Automatic Analysis vs CI
 
 Qué: el job `sonar` del CI falló con `You are running CI analysis while

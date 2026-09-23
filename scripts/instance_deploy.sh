@@ -48,12 +48,13 @@ if ! command -v caddy >/dev/null 2>&1; then
 	CADDY_TAG=$(python3 -c "import json,urllib.request; print(json.load(urllib.request.urlopen('https://api.github.com/repos/caddyserver/caddy/releases/latest', timeout=30))['tag_name'])")
 	CADDY_VER="${CADDY_TAG#v}"
 	cd /tmp
-	curl -fsSL -o caddy.tgz "https://github.com/caddyserver/caddy/releases/download/${CADDY_TAG}/caddy_${CADDY_VER}_linux_amd64.tar.gz"
+	rm -f caddy.tgz # resto de un intento anterior con nombre distinto
+	curl -fsSL -o "caddy_${CADDY_VER}_linux_amd64.tar.gz" "https://github.com/caddyserver/caddy/releases/download/${CADDY_TAG}/caddy_${CADDY_VER}_linux_amd64.tar.gz"
 	curl -fsSL -o caddy_checks.txt "https://github.com/caddyserver/caddy/releases/download/${CADDY_TAG}/caddy_${CADDY_VER}_checksums.txt"
 	grep "caddy_${CADDY_VER}_linux_amd64.tar.gz" caddy_checks.txt | sha512sum -c -
-	tar xzf caddy.tgz caddy
+	tar xzf "caddy_${CADDY_VER}_linux_amd64.tar.gz" caddy
 	install -m 0755 caddy /usr/local/bin/caddy
-	rm -f caddy.tgz caddy_checks.txt caddy
+	rm -f "caddy_${CADDY_VER}_linux_amd64.tar.gz" caddy_checks.txt caddy
 fi
 command -v setcap >/dev/null 2>&1 || dnf install -y libcap
 setcap cap_net_bind_service=+ep /usr/local/bin/caddy
