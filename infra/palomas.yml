@@ -35,11 +35,6 @@ Resources:
       VpcId: !Ref VpcId
       SecurityGroupIngress:
         - IpProtocol: tcp
-          FromPort: 8080
-          ToPort: 8080
-          CidrIp: !Ref AllowedCidr
-          Description: "HTTP app palomas (se restringira a self tras TLS)"
-        - IpProtocol: tcp
           FromPort: 80
           ToPort: 80
           CidrIp: !Ref AllowedCidr
@@ -111,6 +106,18 @@ Resources:
       Tags:
         - Key: Name
           Value: palomas-app
+
+  # 8080 solo-via-Caddy como recurso aparte: inline crearía dependencia
+  # circular (SG -> SG + instancia -> SG). Así solo depende del SG.
+  AppSelfIngress8080:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref AppSecurityGroup
+      IpProtocol: tcp
+      FromPort: 8080
+      ToPort: 8080
+      SourceSecurityGroupId: !GetAtt AppSecurityGroup.GroupId
+      Description: "HTTP app palomas (solo via Caddy en esta maquina)"
 
   AppEIP:
     Type: AWS::EC2::EIP

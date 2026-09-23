@@ -114,6 +114,37 @@ intentos anteriores.
 Lección: si se verifica checksum contra nombre de archivo, no renombrar al
 descargar.
 
+## 2026-09-23 — TLS (4): HTTPS vivo, pero sin Secure ni https en feeds
+
+Qué: el deploy pasó y `https://44-218-216-230.sslip.io` dio 200 con
+certificado Let's Encrypt válido (CN correcto, 90 días) y redirect 308 de
+HTTP a HTTPS. Pero al verificar fino: la cookie NO traía `Secure` y los feeds
+seguían generando `http://`.
+Diagnóstico: causa única — `systemctl enable --now` NO reinicia un servicio
+que ya está activo; la instancia seguía corriendo el binario viejo (sin
+`--cookie-secure` ni `X-Forwarded-Proto`).
+Arreglo: `enable` + `restart` explícito para palomas (binario nuevo +
+plantillas cacheadas lo exigen) y `reload-or-restart` para caddy (no cortar
+conexiones). Tras redesplegar: cookie
+`HttpOnly; Secure; SameSite=Lax` y feeds con `https://`. Verificado con
+`curl -D` (Set-Cookie) y `openssl s_client` (issuer Let's Encrypt).
+Lección: `--now` solo arranca si está inactivo; todo deploy debe reiniciar
+explícito. Por eso la verificación fina (no solo HTTP 200) es obligatoria.
+
+## 2026-09-23 — TLS (5): 8080 restringido a solo-vía-Caddy
+
+Qué: con HTTPS verificado, el SG deja de exponer el 8080 al mundo: la regla
+pasó de `CidrIp 0.0.0.0/0` a `SourceSecurityGroupId` propio (self). Ahora a la
+app solo se llega vía Caddy (:80/:443), lo que además hace no-falsificable la
+cabecera `X-Forwarded-Proto`.
+Verificación: `https://` sigue 200 y `http://<EIP>:8080/` ya no responde desde
+fuera. Variable `PALOMAS_APP_URL` actualizada a la URL https.
+Fallo intermedio: la primera versión ponía la regla self como `ingress`
+inline del propio SG y CloudFormation rechazó con `Circular dependency
+between resources: [AppInstance, AppSecurityGroup, AppEIPAssociation]`.
+Arreglo: regla 8080 como recurso aparte `AWS::EC2::SecurityGroupIngress`
+(`AppSelfIngress8080`), que solo depende del SG.
+
 ## 2026-09-23 — SonarCloud: conflicto Automatic Analysis vs CI
 
 Qué: el job `sonar` del CI falló con `You are running CI analysis while
