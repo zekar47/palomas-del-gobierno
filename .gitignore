@@ -10,3 +10,4 @@ coverage.out
 coverage.html
 coverage-sonar.xml
 gosec.sarif
+vendor/
