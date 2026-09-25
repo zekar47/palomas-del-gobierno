@@ -1,32 +1,98 @@
 name: Deploy
 
-# Se ejecuta solo cuando CI terminó en verde sobre main (gating real),
-# o manualmente con workflow_dispatch (bootstrap tras recrear el stack).
+# CI genera un artefacto inmutable después de validar el commit.
+# Deploy consume ese artefacto; no ejecuta código fuente recibido del evento.
+# El dispatch manual requiere el ID de una ejecución CI exitosa de main.
 on:
   workflow_run:
     workflows: [CI]
     types: [completed]
     branches: [main]
   workflow_dispatch:
+    inputs:
+      ci_run_id:
+        description: 'ID numérico de una ejecución CI exitosa en main'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: palomas-production
+  cancel-in-progress: false
 
 jobs:
   deploy:
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    if: >-
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_repository.full_name == github.repository &&
+       github.event.workflow_run.head_branch == 'main') ||
+      (github.event_name == 'workflow_dispatch' &&
+       github.ref == 'refs/heads/main' &&
+       inputs.ci_run_id != '')
     runs-on: ubuntu-latest
     env:
       AWS_REGION: us-east-1
+      CI_RUN_ID: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.id || inputs.ci_run_id }}
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+      - name: Validar ejecución CI de origen
+        id: source
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          [[ "$CI_RUN_ID" =~ ^[0-9]+$ ]] || {
+            echo "CI_RUN_ID debe ser numérico" >&2
+            exit 1
+          }
+          run_json="$(curl --proto '=https' --tlsv1.2 -fsS \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/runs/${CI_RUN_ID}")"
+          [[ "$(jq -r '.name // empty' <<<"$run_json")" == "CI" ]] || {
+            echo "El run no corresponde al workflow CI" >&2
+            exit 1
+          }
+          [[ "$(jq -r '.conclusion // empty' <<<"$run_json")" == "success" ]] || {
+            echo "El run CI no fue exitoso" >&2
+            exit 1
+          }
+          [[ "$(jq -r '.head_branch // empty' <<<"$run_json")" == "main" ]] || {
+            echo "El run CI no pertenece a main" >&2
+            exit 1
+          }
+          [[ "$(jq -r '.head_repository.full_name // empty' <<<"$run_json")" == "$GITHUB_REPOSITORY" ]] || {
+            echo "El run CI no pertenece a este repositorio" >&2
+            exit 1
+          }
+          source_sha="$(jq -r '.head_sha // empty' <<<"$run_json")"
+          [[ "$source_sha" =~ ^[0-9a-f]{40}$ ]] || {
+            echo "El run no tiene un SHA válido" >&2
+            exit 1
+          }
+          echo "sha=$source_sha" >> "$GITHUB_OUTPUT"
 
-      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+      - name: Descargar artefacto de despliegue
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
-          go-version-file: go.mod
-          cache: true
+          name: palomas-deploy
+          path: deploy-bundle
+          run-id: ${{ env.CI_RUN_ID }}
+          repository: ${{ github.repository }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Compilar binario linux/amd64
-        run: GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o palomas-linux-amd64 .
+      - name: Verificar artefacto de despliegue
+        run: |
+          set -euo pipefail
+          test -f deploy-bundle/palomas-linux-amd64
+          test -f deploy-bundle/instance_deploy.sh
+          test -f deploy-bundle/SHA256SUMS
+          test -d deploy-bundle/templates
+          test -d deploy-bundle/static
+          (cd deploy-bundle && sha256sum --check SHA256SUMS)
 
       - name: Configurar credenciales AWS
         uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4
@@ -38,22 +104,26 @@ jobs:
 
       - name: Subir artefactos a S3
         run: |
-          aws s3 cp palomas-linux-amd64 s3://${{ vars.PALOMAS_BUCKET }}/palomas-linux-amd64
-          aws s3 cp scripts/instance_deploy.sh s3://${{ vars.PALOMAS_BUCKET }}/instance_deploy.sh
-          aws s3 sync templates/ s3://${{ vars.PALOMAS_BUCKET }}/templates/ --delete
-          aws s3 sync static/ s3://${{ vars.PALOMAS_BUCKET }}/static/ --delete
+          set -euo pipefail
+          aws s3 cp deploy-bundle/palomas-linux-amd64 s3://${{ vars.PALOMAS_BUCKET }}/palomas-linux-amd64
+          aws s3 cp deploy-bundle/instance_deploy.sh s3://${{ vars.PALOMAS_BUCKET }}/instance_deploy.sh
+          aws s3 sync deploy-bundle/templates/ s3://${{ vars.PALOMAS_BUCKET }}/templates/ --delete
+          aws s3 sync deploy-bundle/static/ s3://${{ vars.PALOMAS_BUCKET }}/static/ --delete
 
       - name: Desplegar vía SSM + health check
         env:
           INSTANCE_ID: ${{ vars.PALOMAS_INSTANCE_ID }}
           BUCKET: ${{ vars.PALOMAS_BUCKET }}
           APP_URL: ${{ vars.PALOMAS_APP_URL }}
+          SOURCE_SHA: ${{ steps.source.outputs.sha }}
         run: |
+          set -euo pipefail
           CMD_ID=$(aws ssm send-command --instance-ids "$INSTANCE_ID" \
-            --document-name AWS-RunShellScript --comment "deploy palomas $GITHUB_SHA" \
+            --document-name AWS-RunShellScript --comment "deploy palomas $SOURCE_SHA" \
             --parameters "{\"commands\":[\"aws s3 cp s3://$BUCKET/instance_deploy.sh /tmp/instance_deploy.sh && bash /tmp/instance_deploy.sh $BUCKET\"]}" \
             --query 'Command.CommandId' --output text)
           echo "command: $CMD_ID"
+          STATUS=Pending
           for i in $(seq 1 24); do
             sleep 5
             STATUS=$(aws ssm get-command-invocation --command-id "$CMD_ID" \

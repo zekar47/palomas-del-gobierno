@@ -38,7 +38,26 @@ jobs:
           path: coverage.html
 
       - name: Compilar binario linux/amd64
-        run: GOOS=linux GOARCH=amd64 go build -o palomas-linux-amd64 .
+        run: CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o palomas-linux-amd64 .
+
+      - name: Preparar artefacto de despliegue
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          rm -rf deploy-bundle
+          mkdir -p deploy-bundle
+          cp palomas-linux-amd64 deploy-bundle/
+          cp -R templates static deploy-bundle/
+          cp scripts/instance_deploy.sh deploy-bundle/instance_deploy.sh
+          (cd deploy-bundle && sha256sum palomas-linux-amd64 > SHA256SUMS)
+
+      - name: Publicar artefacto de despliegue
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: palomas-deploy
+          path: deploy-bundle/
+          if-no-files-found: error
+          retention-days: 7
 
       - name: gosec (SARIF)
         uses: securego/gosec@deb54465fea23d19a77f037e11e6589021f8501d # v2.29.0
